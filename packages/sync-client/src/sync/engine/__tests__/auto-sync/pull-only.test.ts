@@ -67,6 +67,55 @@ describe("SyncAutoLoop pull-only", () => {
     await store.close();
   });
 
+  it("refuses to pull when the store contains pending local changes", async () => {
+    const store = createTestSyncStore();
+    await store.markEntryDirty({
+      mutationId: "mutation-1",
+      entryId: "entry-1",
+      op: "delete",
+      baseRevision: 0,
+      blobId: null,
+      hash: null,
+      encryptedMetadata: "encrypted-metadata",
+      createdAt: 1,
+    });
+    const pullOnce = vi.fn(async () => {});
+    const openSession = vi.fn(createRealtimeClient().openSession);
+    const autoLoop = new SyncAutoLoop({
+      getApiBaseUrl: () => "http://127.0.0.1:8787",
+      getSyncToken: async () => createToken(),
+      getSyncStore: () => store,
+      pushPendingMutations: vi.fn(async () => createPushResult()),
+      pullOnce,
+      realtimeClient: { openSession },
+    });
+
+    await expect(autoLoop.pullOnlyOnce()).rejects.toThrow(
+      "no pending local changes",
+    );
+    expect(openSession).not.toHaveBeenCalled();
+    expect(pullOnce).not.toHaveBeenCalled();
+    await store.close();
+  });
+
+  it("explains how to rebuild state when the local cursor is ahead", async () => {
+    const store = createTestSyncStore();
+    await store.setCursor(8);
+    const autoLoop = new SyncAutoLoop({
+      getApiBaseUrl: () => "http://127.0.0.1:8787",
+      getSyncToken: async () => createToken(),
+      getSyncStore: () => store,
+      pushPendingMutations: vi.fn(async () => createPushResult()),
+      pullOnce: vi.fn(async () => {}),
+      realtimeClient: createRealtimeClient(undefined, undefined, 7),
+    });
+
+    await expect(autoLoop.pullOnlyOnce()).rejects.toThrow(
+      "Move .synch/sync.sqlite aside",
+    );
+    await store.close();
+  });
+
   it("propagates asynchronous session errors and still closes the session", async () => {
     const store = createTestSyncStore();
     let sessionClosed = false;

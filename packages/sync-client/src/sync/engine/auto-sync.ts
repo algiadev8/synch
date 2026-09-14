@@ -14,7 +14,7 @@ import {
   type SyncStorageStatus,
   type PresenceUpdatedPush,
 } from "../remote/realtime-client";
-import type { SyncCursorStore } from "../store/ports";
+import type { SyncCursorStore, SyncMutationStore } from "../store/ports";
 import { SyncAutoLoopState, type SyncConnectionState } from "./auto-sync-state";
 import { AutoSyncTimers } from "./auto-sync-timers";
 import { PendingSyncWorkQueue } from "./auto-sync-work-queue";
@@ -28,7 +28,7 @@ const DEFAULT_SYNC_RETRY_MAX_DELAY_MS = 30_000;
 export interface SyncAutoLoopDeps {
   getApiBaseUrl: () => string;
   getSyncToken: () => Promise<SyncTokenResponse>;
-  getSyncStore: () => SyncCursorStore | null;
+  getSyncStore: () => (SyncCursorStore & SyncMutationStore) | null;
   pushPendingMutations: (
     session: SyncRealtimeSession,
     shouldYield: () => boolean,
@@ -182,6 +182,13 @@ export class SyncAutoLoop {
       throw new Error("Sync store is not initialized.");
     }
 
+    const pendingMutations = await store.listDirtyEntries(1);
+    if (pendingMutations.length > 0) {
+      throw new Error(
+        "Pull-only sync requires a read-only replica with no pending local changes. Use a fresh backup directory or resolve the pending changes with `synch sync` first.",
+      );
+    }
+
     const token = await this.deps.getSyncToken();
     const cursor = await store.getCursor();
     let sessionError: Error | null = null;
@@ -207,7 +214,7 @@ export class SyncAutoLoop {
       if (cursor > session.serverCursor) {
         throw new SyncRealtimeError(
           "cursor_ahead_of_server",
-          "This device's sync history no longer matches the remote vault. Reconnect the CLI vault credentials before retrying.",
+          "This device's sync history no longer matches the remote vault. Move .synch/sync.sqlite aside, then run `synch vault connect --vault-id <id>` to rebuild this read-only replica's sync state.",
         );
       }
       if (sessionError) {
