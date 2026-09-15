@@ -43,6 +43,7 @@ import type {
   SynchDeletedFilesPurgeResult,
   SynchDeletedFilesRestoreResult,
   SynchEntryVersionCursor,
+  SynchBlockedSyncFile,
   SynchFileSizeBlockedFile,
   SynchCommunityPluginUpdateStatus,
   SynchServerCompatibilityStatus,
@@ -683,8 +684,13 @@ export class SynchPluginController implements SynchSettingsController {
     return await this.versionHistoryController.listDeletedFiles(before, limit);
   }
 
+  async listBlockedSyncFiles(): Promise<SynchBlockedSyncFile[]> {
+    return await this.syncController.listBlockedSyncFiles();
+  }
+
+  /** @deprecated Use `listBlockedSyncFiles`. */
   async listFileSizeBlockedFiles(): Promise<SynchFileSizeBlockedFile[]> {
-    return await this.syncController.listFileSizeBlockedFiles();
+    return await this.listBlockedSyncFiles();
   }
 
   async previewDeletedFile(

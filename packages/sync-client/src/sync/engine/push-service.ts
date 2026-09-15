@@ -47,6 +47,7 @@ export interface SyncPushServiceDeps extends SyncContentRuntimeDeps {
   prepareConcurrency?: number;
   onProgress?: (progress: SyncOperationProgress) => Promise<void>;
   onConflict?: (event: PushConflictEvent) => void;
+  /** @deprecated Name retained for host compatibility; fires for every blocked sync file. */
   onFileSizeBlockedFilesChange?: () => void;
   onFileSyncStarted?: (event: {
     operation: "upsert" | "delete";
@@ -116,7 +117,7 @@ export class SyncPushService {
     let filesCreatedOrUpdated = 0;
     let filesDeleted = 0;
     let conflictsCreated = 0;
-    let fileSizeBlocked = 0;
+    let blockedSyncFiles = 0;
     let shouldPullAfterPush = false;
     const acceptedCursors: number[] = [];
     // Allow one immediate retry after requeueing; repeated churn must use the
@@ -169,8 +170,8 @@ export class SyncPushService {
               path,
               reason: prepared.reason,
             });
-            if (prepared.reason === "file_too_large") {
-              fileSizeBlocked += 1;
+            if (prepared.reason === "file_too_large" || prepared.reason === "incompatible_path") {
+              blockedSyncFiles += 1;
             }
             if (prepared.reason === "storage_quota_exceeded") {
               stopAfterCurrentBatch = true;
@@ -352,8 +353,8 @@ export class SyncPushService {
     progress.seal();
     await onProgress(progress.snapshot());
 
-    // TODO: Refresh file-size-blocked decorations when existing blocked files become syncable.
-    if (fileSizeBlocked > 0) {
+    // TODO: Refresh decorations when an existing blocked file becomes syncable.
+    if (blockedSyncFiles > 0) {
       this.deps.onFileSizeBlockedFilesChange?.();
     }
 

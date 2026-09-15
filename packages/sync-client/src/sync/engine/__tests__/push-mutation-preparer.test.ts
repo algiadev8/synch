@@ -15,6 +15,24 @@ import {
 } from "./push-service/helpers";
 
 describe("PushMutationPreparer encrypted payload retention", () => {
+  it("blocks a Windows-incompatible path before reading or uploading content", async () => {
+    const fixture = await createRetryFixture("Notes/a:b.md");
+    try {
+      await expect(fixture.prepare()).resolves.toEqual({
+        skipped: true,
+        reason: "incompatible_path",
+      });
+      expect(fixture.encrypt).not.toHaveBeenCalled();
+      expect(fixture.upload).not.toHaveBeenCalled();
+      expect(await fixture.store.getDirtyEntryMutation(fixture.mutation.entryId)).toMatchObject({
+        status: "blocked",
+        blockedReason: "incompatible_path",
+      });
+    } finally {
+      await fixture.dispose();
+    }
+  });
+
   it.each([
     ["Folder/image.png", false],
     ["Folder/note.md", true],

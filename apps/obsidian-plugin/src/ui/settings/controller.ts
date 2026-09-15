@@ -7,6 +7,7 @@ import type {
   SynchDeletedFilesPurgeResult,
   SynchDeletedFile,
   SynchDeletedFilesRestoreResult,
+  SynchBlockedSyncFile,
   SynchFileSizeBlockedFile,
   SynchCommunityPluginUpdateStatus,
   SynchServerCompatibilityStatus,
@@ -36,6 +37,8 @@ export interface SynchSettingsController {
   getSyncLogs(): SynchSyncLogs;
   clearSyncLogs(): void;
   subscribeSyncLogs(listener: () => void): () => void;
+  listBlockedSyncFiles(): Promise<SynchBlockedSyncFile[]>;
+  /** @deprecated Use `listBlockedSyncFiles`. */
   listFileSizeBlockedFiles(): Promise<SynchFileSizeBlockedFile[]>;
   isSyncEnabled(): boolean;
   setSyncEnabled(enabled: boolean): Promise<void>;

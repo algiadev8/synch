@@ -9,3 +9,5 @@
 - Apply downloaded files in related groups and release their buffers promptly. Servers that report file sizes use memory-aware download admission; older servers retain parallel downloads. Oversized groups run on their own.
 
 ## Fixed
+
+- Prevent files with incompatible paths from being uploaded, and identify them in the file explorer and sync settings so they can be renamed safely.

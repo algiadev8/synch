@@ -92,13 +92,16 @@ describe("SyncEngine", () => {
     const { engine } = createTestEngine(vault);
     engine.setStore(store);
 
-    await expect(engine.listFileSizeBlockedFiles()).resolves.toEqual([
+    const expected = [
       {
         path: "Folder/large.md",
+        reason: "file_too_large" as const,
         encryptedSizeBytes: 12_400_000,
         maxFileSizeBytes: 10_000_000,
       },
-    ]);
+    ];
+    await expect(engine.listBlockedSyncFiles()).resolves.toEqual(expected);
+    await expect(engine.listFileSizeBlockedFiles()).resolves.toEqual(expected);
     await store.close();
   });
 
@@ -107,6 +110,7 @@ describe("SyncEngine", () => {
     vault.seedText("note.md", "body");
     const { engine } = createTestEngine(vault);
 
+    await expect(engine.listBlockedSyncFiles()).resolves.toEqual([]);
     await expect(engine.listFileSizeBlockedFiles()).resolves.toEqual([]);
   });
 

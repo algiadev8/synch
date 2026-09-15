@@ -10,6 +10,7 @@ import {
   shouldSyncVaultConfigPath,
   type VaultConfigSyncRules,
 } from "./vault-config-rules";
+import { isPortableVaultPath } from "./portable-path";
 
 export type VaultPathPolicyDecision =
   | { kind: "sync" }
@@ -47,6 +48,9 @@ export function shouldApplyRemoteVaultPath(
   path: string,
   rules: VaultPathPolicyRules,
 ): boolean {
+  if (!isPortableVaultPath(path)) {
+    return false;
+  }
   if (isForbiddenVaultPath(path, rules.configDir)) {
     return false;
   }

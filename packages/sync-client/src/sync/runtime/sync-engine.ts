@@ -64,7 +64,9 @@ import {
   type SyncEntryVersionsPage,
 } from "./version-history-service";
 import {
+  listBlockedSyncFiles,
   listFileSizeBlockedFiles,
+  type SyncBlockedSyncFile,
   type SyncFileSizeBlockedFile,
 } from "../engine/file-size-blocked";
 import {
@@ -638,6 +640,16 @@ export class SyncEngine {
     return this.deps.getConfigDir();
   }
 
+  async listBlockedSyncFiles(): Promise<SyncBlockedSyncFile[]> {
+    const store = this.syncStore;
+    if (!store) {
+      return [];
+    }
+
+    return await listBlockedSyncFiles(store, this.deps.getRemoteVaultKey());
+  }
+
+  /** @deprecated Use `listBlockedSyncFiles`. */
   async listFileSizeBlockedFiles(): Promise<SyncFileSizeBlockedFile[]> {
     const store = this.syncStore;
     if (!store) {
@@ -780,5 +792,5 @@ export class SyncEngine {
   }
 }
 
-export type { SyncFileSizeBlockedFile } from "../engine/file-size-blocked";
+export type { SyncBlockedSyncFile, SyncFileSizeBlockedFile } from "../engine/file-size-blocked";
 export type SyncEngineEntryVersionsPage = SyncEntryVersionsPage;
