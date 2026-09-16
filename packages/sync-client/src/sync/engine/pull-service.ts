@@ -25,7 +25,7 @@ export interface SyncPullServiceDeps extends SyncContentRuntimeDeps {
   getSyncToken: () => Promise<SyncTokenResponse>;
   getSyncStore: () => SyncPullStore | null;
   getRemoteVaultKey: () => Uint8Array;
-  shouldApplyRemotePath?: (path: string) => boolean;
+  shouldApplyRemotePath?: (path: string, deleted: boolean) => boolean;
   shouldUseLatestRemoteVersion?: (path: string) => boolean;
   vaultAdapter: PullVaultAdapter;
   eventGate?: SyncEventGateLike;

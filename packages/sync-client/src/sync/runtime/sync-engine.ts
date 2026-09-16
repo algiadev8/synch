@@ -321,8 +321,8 @@ export class SyncEngine {
       getSyncToken: async () => await this.deps.getSyncToken(),
       getSyncStore: () => this.syncStore,
       getRemoteVaultKey: () => this.deps.getRemoteVaultKey(),
-      shouldApplyRemotePath: (path) =>
-        shouldApplyRemoteVaultPath(path, this.vaultPathPolicyRules()),
+      shouldApplyRemotePath: (path, deleted) =>
+        shouldApplyRemoteVaultPath(path, this.vaultPathPolicyRules(), { deleted }),
       shouldUseLatestRemoteVersion: (path) =>
         shouldUseLatestRemoteVaultConfig(path, this.vaultPathPolicyRules()),
       eventGate: this.syncEventGate,

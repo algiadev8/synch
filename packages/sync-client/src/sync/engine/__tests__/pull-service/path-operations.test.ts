@@ -82,6 +82,68 @@ describe("SyncPullService path operations", () => {
     await store.close();
   });
 
+  it("applies a tombstone when live writes for the path are rejected", async () => {
+    const store = createTestSyncStore();
+    const path = "Notes/a:b.md";
+    const adapter = createVaultAdapter({ [path]: "legacy content" });
+    await store.upsertEntry({
+      entryId: "entry-incompatible",
+      path,
+      revision: 1,
+      blobId: "blob-legacy",
+      hash: await hashText("legacy content"),
+      deleted: false,
+      updatedAt: 1,
+    });
+
+    const session = createRealtimeSession({
+      pages: [
+        {
+          cursor: 2,
+          hasMore: false,
+          commits: [
+            createCommit({
+              cursor: 2,
+              entryId: "entry-incompatible",
+              op: "delete",
+              revision: 2,
+              baseRevision: 1,
+              encryptedMetadata: await encryptRemoteMetadata({
+                entryId: "entry-incompatible",
+                revision: 2,
+                deleted: true,
+                blobId: null,
+                path,
+              }),
+            }),
+          ],
+        },
+      ],
+    });
+    const service = new SyncPullService({
+      contentRuntime: createTestContentRuntime(),
+      getSyncToken: async () => createToken(),
+      getSyncStore: () => store,
+      getRemoteVaultKey: () => TEST_VAULT_KEY,
+      shouldApplyRemotePath: (_path, deleted) => deleted,
+      vaultAdapter: adapter,
+      blobClient: createBlobClient({}),
+      onProgress: ignoreProgress,
+    });
+
+    await expect(service.pullOnce(session)).resolves.toMatchObject({
+      cursor: 2,
+      entriesApplied: 1,
+      filesDeleted: 1,
+    });
+    expect(adapter.files.has(path)).toBe(false);
+    expect(await store.getRemoteStateById("entry-incompatible")).toMatchObject({
+      revision: 2,
+      deleted: true,
+    });
+    await store.close();
+  });
+
   it("applies remote path changes using a vault rename", async () => {
     const store = createTestSyncStore();
     const adapter = createVaultAdapter({

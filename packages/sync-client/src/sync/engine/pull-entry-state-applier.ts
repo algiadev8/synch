@@ -44,7 +44,7 @@ export interface PullEntryStateApplierDeps extends SyncContentRuntimeDeps {
   vaultAdapter: PullEntryStateVaultAdapter;
   eventGate?: SyncEventGateLike;
   blobClient: Pick<SyncBlobClient, "downloadBlob">;
-  shouldApplyRemotePath?: (path: string) => boolean;
+  shouldApplyRemotePath?: (path: string, deleted: boolean) => boolean;
   shouldUseLatestRemoteVersion?: (path: string) => boolean;
   prepareConcurrency?: number;
   onConflict?: (event: PullConflictEvent) => void;
@@ -303,7 +303,10 @@ export class PullEntryStateApplier {
   private shouldApplyPlanToVault(plan: PlannedEntryState): boolean {
     return (
       !plan.metadata.path ||
-      this.deps.shouldApplyRemotePath?.(plan.metadata.path) !== false
+      this.deps.shouldApplyRemotePath?.(
+        plan.metadata.path,
+        plan.state.deleted,
+      ) !== false
     );
   }
 
