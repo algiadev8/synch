@@ -22,7 +22,8 @@ export interface PortablePathViolation {
 const WINDOWS_RESERVED_CHARACTERS = /[<>:"\\|?*]/;
 const WINDOWS_CONTROL_CHARACTERS = /[\u0000-\u001f]/;
 const WINDOWS_TRAILING_SPACE_OR_DOT = /[ .]$/;
-const WINDOWS_DEVICE_NAME = /^(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\..*)?$/i;
+const WINDOWS_DEVICE_NAME =
+  /^(?:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[\d¹²³]|LPT[\d¹²³]) *(?:\..*)?$/i;
 
 export function validatePortableVaultPath(path: string): PortablePathViolation[] {
   if (!path) {

@@ -18,6 +18,8 @@ describe("validatePortableVaultPath", () => {
     ["Notes/note.md ", "windows_trailing_space_or_dot"],
     ["Notes/NUL.md", "windows_reserved_name"],
     ["COM¹", "windows_reserved_name"],
+    ["Notes/CONIN$", "windows_reserved_name"],
+    ["Notes/CONOUT$.log", "windows_reserved_name"],
     ["Notes//file.md", "empty_component"],
     ["Notes/../file.md", "dot_component"],
   ])("rejects %s", (path, code) => {

@@ -71,7 +71,7 @@ describe("SyncEngine", () => {
     await store.close();
   });
 
-  it("lists file-size blocked files with decrypted paths and size metadata", async () => {
+  it("keeps the deprecated file-size list limited to oversized files", async () => {
     const vault = new InMemoryVaultAdapter();
     vault.seedText("note.md", "body");
     const store = createTestSyncStore();
@@ -89,10 +89,22 @@ describe("SyncEngine", () => {
       blockedEncryptedSizeBytes: 12_400_000,
       blockedMaxFileSizeBytes: 10_000_000,
     });
+    const incompatiblePath = await queueLocalUpsertMutation(store, {
+      remoteVaultKey: TEST_VAULT_KEY,
+      path: "Folder/bad:name.md",
+      entryId: "entry-incompatible-path",
+      base: null,
+      hash: "hash-incompatible-path",
+    });
+    await store.updateDirtyEntry({
+      ...incompatiblePath.mutation,
+      status: "blocked",
+      blockedReason: "incompatible_path",
+    });
     const { engine } = createTestEngine(vault);
     engine.setStore(store);
 
-    const expected = [
+    const fileSizeBlockedExpected = [
       {
         path: "Folder/large.md",
         reason: "file_too_large" as const,
@@ -100,8 +112,16 @@ describe("SyncEngine", () => {
         maxFileSizeBytes: 10_000_000,
       },
     ];
-    await expect(engine.listBlockedSyncFiles()).resolves.toEqual(expected);
-    await expect(engine.listFileSizeBlockedFiles()).resolves.toEqual(expected);
+    await expect(engine.listBlockedSyncFiles()).resolves.toEqual([
+      ...fileSizeBlockedExpected,
+      {
+        path: "Folder/bad:name.md",
+        reason: "incompatible_path",
+        encryptedSizeBytes: null,
+        maxFileSizeBytes: null,
+      },
+    ]);
+    await expect(engine.listFileSizeBlockedFiles()).resolves.toEqual(fileSizeBlockedExpected);
     await store.close();
   });
 

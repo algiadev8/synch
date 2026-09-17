@@ -49,5 +49,7 @@ export async function listFileSizeBlockedFiles(
   store: SyncStore,
   remoteVaultKey: Uint8Array,
 ): Promise<SyncFileSizeBlockedFile[]> {
-  return await listBlockedSyncFiles(store, remoteVaultKey);
+  return (await listBlockedSyncFiles(store, remoteVaultKey)).filter(
+    (file) => file.reason === "file_too_large",
+  );
 }
