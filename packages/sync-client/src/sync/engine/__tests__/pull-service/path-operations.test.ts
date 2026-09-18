@@ -1,7 +1,8 @@
 import { createTestContentRuntime } from "../../../../test-support/content-runtime";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { SyncPullService } from "../../pull-service";
+import { listBlockedSyncFiles, listFileSizeBlockedFiles } from "../../file-size-blocked";
 import { isPortableVaultPath } from "../../../core/portable-path";
 import { createTestSyncStore } from "../../../../test-support/in-memory-sync-store";
 import {
@@ -91,6 +92,87 @@ describe("SyncPullService path operations", () => {
         path: "bad:name.md", revision: 2,
       });
       expect(await store.getCursor()).toBe(3);
+      await store.close();
+    },
+  );
+
+  it.each(["rename", "delete"] as const)(
+    "reports a skipped remote file and clears its warning after a remote %s",
+    async (operation) => {
+      const store = createTestSyncStore();
+      const adapter = createVaultAdapter({});
+      const path = "bad:name.md";
+      const hash = await hashText("remote content");
+      const onRemoteStatesChange = vi.fn();
+      const service = new SyncPullService({
+        contentRuntime: createTestContentRuntime(),
+        getSyncToken: async () => createToken(),
+        getSyncStore: () => store,
+        getRemoteVaultKey: () => TEST_VAULT_KEY,
+        shouldApplyRemotePath: (path, deleted) => deleted || isPortableVaultPath(path),
+        vaultAdapter: adapter,
+        blobClient: createBlobClient({
+          blobs: {
+            "blob-remote": await encryptTestBlob(
+              "blob-remote", new TextEncoder().encode("remote content"),
+            ),
+          },
+        }),
+        onRemoteStatesChange,
+        onProgress: ignoreProgress,
+      });
+      await service.pullOnce(createRealtimeSession({ pages: [{
+        cursor: 1,
+        hasMore: false,
+        commits: [createCommit({
+          entryId: "remote",
+          blobId: "blob-remote",
+          encryptedMetadata: await encryptRemoteMetadata({
+            entryId: "remote", revision: 1, blobId: "blob-remote", path, hash,
+          }),
+        })],
+      }] }));
+
+      expect(adapter.files.size).toBe(0);
+      expect(await store.listDirtyEntries()).toEqual([]);
+      await expect(listBlockedSyncFiles(store, TEST_VAULT_KEY)).resolves.toEqual([{
+        path,
+        reason: "incompatible_path",
+        encryptedSizeBytes: null,
+        maxFileSizeBytes: null,
+      }]);
+      await expect(listFileSizeBlockedFiles(store, TEST_VAULT_KEY)).resolves.toEqual([]);
+      expect(onRemoteStatesChange).toHaveBeenCalledTimes(1);
+
+      const deleted = operation === "delete";
+      await service.pullOnce(createRealtimeSession({ pages: [{
+        cursor: 2,
+        hasMore: false,
+        commits: [createCommit({
+          cursor: 2,
+          entryId: "remote",
+          revision: 2,
+          baseRevision: 1,
+          op: deleted ? "delete" : "upsert",
+          blobId: deleted ? null : "blob-remote",
+          encryptedMetadata: await encryptRemoteMetadata({
+            entryId: "remote",
+            revision: 2,
+            deleted,
+            blobId: deleted ? null : "blob-remote",
+            path: deleted ? path : "safe.md",
+            hash,
+          }),
+        })],
+      }] }));
+      await expect(listBlockedSyncFiles(store, TEST_VAULT_KEY)).resolves.toEqual([]);
+      expect(onRemoteStatesChange).toHaveBeenCalledTimes(2);
+      if (!deleted) expect(adapter.text("safe.md")).toBe("remote content");
+
+      await service.pullOnce(createRealtimeSession({
+        pages: [{ cursor: 2, hasMore: false, commits: [] }],
+      }));
+      expect(onRemoteStatesChange).toHaveBeenCalledTimes(2);
       await store.close();
     },
   );

@@ -1,3 +1,4 @@
+import { isPortableVaultPath } from "../core/portable-path";
 import { decryptSyncMetadata } from "../core/crypto";
 import { metadataContextFromMutation } from "./push-mutation-shared";
 import type { SyncStore } from "../store/store";
@@ -41,7 +42,21 @@ export async function listBlockedSyncFiles(
     });
   }
 
-  return files;
+  // Pull already persists decrypted remote metadata even when applying the
+  // file was rejected. Derive remote warnings from that state so they survive
+  // restarts and disappear when the remote path is renamed or deleted.
+  const byPath = new Map(files.map((file) => [file.path, file]));
+  for (const remote of await store.listRemoteStates()) {
+    if (!remote.deleted && remote.path && !isPortableVaultPath(remote.path)) {
+      byPath.set(remote.path, {
+        path: remote.path,
+        reason: "incompatible_path",
+        encryptedSizeBytes: null,
+        maxFileSizeBytes: null,
+      });
+    }
+  }
+  return [...byPath.values()];
 }
 
 /** @deprecated Use `listBlockedSyncFiles`. */

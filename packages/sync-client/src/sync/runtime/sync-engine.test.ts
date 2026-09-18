@@ -101,6 +101,25 @@ describe("SyncEngine", () => {
       status: "blocked",
       blockedReason: "incompatible_path",
     });
+    // A remote copy and a blocked local mutation at the same path are one warning.
+    await store.applyRemoteState({
+      entryId: "entry-incompatible-path",
+      path: "Folder/bad:name.md",
+      revision: 1,
+      blobId: "blob-remote",
+      hash: "remote-hash",
+      deleted: false,
+      updatedAt: 1,
+    });
+    await store.applyRemoteState({
+      entryId: "remote-only",
+      path: "remote:only.md",
+      revision: 1,
+      blobId: "blob-remote-only",
+      hash: "remote-only-hash",
+      deleted: false,
+      updatedAt: 1,
+    });
     const { engine } = createTestEngine(vault);
     engine.setStore(store);
 
@@ -116,6 +135,12 @@ describe("SyncEngine", () => {
       ...fileSizeBlockedExpected,
       {
         path: "Folder/bad:name.md",
+        reason: "incompatible_path",
+        encryptedSizeBytes: null,
+        maxFileSizeBytes: null,
+      },
+      {
+        path: "remote:only.md",
         reason: "incompatible_path",
         encryptedSizeBytes: null,
         maxFileSizeBytes: null,

@@ -10,4 +10,4 @@
 
 ## Fixed
 
-- Prevent files with incompatible paths from being uploaded, and identify them in the file explorer and sync settings so they can be renamed safely. Preserve existing local files when a blocked remote rename would otherwise let another file overwrite them.
+- Prevent files with incompatible paths from being uploaded, and identify blocked local files in the file explorer and blocked local or remote files in sync settings so they can be renamed safely. Preserve existing local files when a blocked remote rename would otherwise let another file overwrite them.

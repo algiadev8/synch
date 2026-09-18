@@ -318,6 +318,7 @@ export class SyncEngine {
       },
     });
     this.syncPullService = new SyncPullService({
+      onRemoteStatesChange: () => this.deps.onFileSizeBlockedFilesChange?.(),
       getSyncToken: async () => await this.deps.getSyncToken(),
       getSyncStore: () => this.syncStore,
       getRemoteVaultKey: () => this.deps.getRemoteVaultKey(),

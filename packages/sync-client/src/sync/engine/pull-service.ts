@@ -35,6 +35,7 @@ export interface SyncPullServiceDeps extends SyncContentRuntimeDeps {
   onProgress?: (progress: SyncOperationProgress) => Promise<void>;
   onConflict?: (event: PullConflictEvent) => void;
   onRollbackDetected?: (event: PullRollbackEvent) => void;
+  onRemoteStatesChange?: () => void;
   onFileSyncStarted?: (event: {
     operation: "upsert" | "delete";
     path: string;
@@ -142,6 +143,7 @@ export class SyncPullService {
       (error: unknown) => ({ ok: false as const, error }),
     );
     let pendingPage = startPage(null, null);
+    let remoteStatesMayHaveChanged = false;
 
     try {
       while (hasMore) {
@@ -160,6 +162,7 @@ export class SyncPullService {
 
         if (window.length >= applyWindowSize || !hasMore) {
           const appliedWindow = window;
+          remoteStatesMayHaveChanged ||= window.length > 0;
           const applied = await this.entryStateApplier.applyManifestWindow(
             store,
             token,
@@ -187,6 +190,9 @@ export class SyncPullService {
     } finally {
       // Do not let background work outlive pullOnce (or its crypto/session).
       await pendingPage;
+      // Refresh host warnings once per pull, including skipped remote files and
+      // partial progress before a later failure. Empty polls need no refresh.
+      if (remoteStatesMayHaveChanged) this.deps.onRemoteStatesChange?.();
     }
 
     cursor = targetCursor ?? cursor;
