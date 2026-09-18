@@ -169,7 +169,7 @@ export const ui = {
 			comingSoon: "Coming Soon",
 			features: {
 				oneVault: "1 synced vault",
-				freeStorage: "50 MB storage",
+				freeStorage: "30 MB storage",
 				starterStorage: "1 GB storage",
 				freeFileSize: "3 MB max file size",
 				starterFileSize: "5 MB max file size",
@@ -335,7 +335,7 @@ export const ui = {
 			comingSoon: "준비 중",
 			features: {
 				oneVault: "vault 1개 동기화",
-				freeStorage: "저장 공간 50 MB",
+				freeStorage: "저장 공간 30 MB",
 				starterStorage: "저장 공간 1 GB",
 				freeFileSize: "파일당 최대 3 MB",
 				starterFileSize: "파일당 최대 5 MB",
@@ -501,7 +501,7 @@ export const ui = {
 			comingSoon: "近日公開",
 			features: {
 				oneVault: "同期vault 1個",
-				freeStorage: "50 MBストレージ",
+				freeStorage: "30 MBストレージ",
 				starterStorage: "1 GBストレージ",
 				freeFileSize: "最大ファイルサイズ3 MB",
 				starterFileSize: "最大ファイルサイズ5 MB",
@@ -667,7 +667,7 @@ export const ui = {
 			comingSoon: "即将推出",
 			features: {
 				oneVault: "1 个同步 vault",
-				freeStorage: "50 MB 存储",
+				freeStorage: "30 MB 存储",
 				starterStorage: "1 GB 存储",
 				freeFileSize: "最大文件 3 MB",
 				starterFileSize: "最大文件 5 MB",
@@ -833,7 +833,7 @@ export const ui = {
 			comingSoon: "即將推出",
 			features: {
 				oneVault: "1 個同步 vault",
-				freeStorage: "50 MB 儲存空間",
+				freeStorage: "30 MB 儲存空間",
 				starterStorage: "1 GB 儲存空間",
 				freeFileSize: "最大檔案 3 MB",
 				starterFileSize: "最大檔案 5 MB",
@@ -999,7 +999,7 @@ export const ui = {
 			comingSoon: "Demnächst",
 			features: {
 				oneVault: "1 synchronisiertes Vault",
-				freeStorage: "50 MB Speicher",
+				freeStorage: "30 MB Speicher",
 				starterStorage: "1 GB Speicher",
 				freeFileSize: "max. Dateigröße 3 MB",
 				starterFileSize: "max. Dateigröße 5 MB",
