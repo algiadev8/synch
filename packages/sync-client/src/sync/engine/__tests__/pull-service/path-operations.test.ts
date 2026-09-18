@@ -2,6 +2,7 @@ import { createTestContentRuntime } from "../../../../test-support/content-runti
 import { describe, expect, it } from "vitest";
 
 import { SyncPullService } from "../../pull-service";
+import { isPortableVaultPath } from "../../../core/portable-path";
 import { createTestSyncStore } from "../../../../test-support/in-memory-sync-store";
 import {
   createCommit,
@@ -19,6 +20,81 @@ import {
 } from "./helpers";
 
 describe("SyncPullService path operations", () => {
+  it.each([false, true])(
+    "preserves a blocked rename's local path (paginated: %s)",
+    async (paginated) => {
+      const store = createTestSyncStore();
+      const adapter = createVaultAdapter({ "a.md": "content A", "b.md": "content B" });
+      for (const id of ["a", "b"]) {
+        await store.upsertEntry({
+          entryId: id,
+          path: `${id}.md`,
+          revision: 1,
+          blobId: `blob-${id}`,
+          hash: await hashText(`content ${id.toUpperCase()}`),
+          deleted: false,
+          updatedAt: 1,
+        });
+      }
+      const commits = [];
+      for (const [id, path, cursor] of [
+        ["a", "bad:name.md", 2],
+        ["b", "a.md", 3],
+      ] as const) {
+        commits.push(createCommit({
+          cursor,
+          entryId: id,
+          revision: 2,
+          baseRevision: 1,
+          blobId: `blob-${id}`,
+          encryptedMetadata: await encryptRemoteMetadata({
+            entryId: id,
+            revision: 2,
+            blobId: `blob-${id}`,
+            path,
+            hash: await hashText(`content ${id.toUpperCase()}`),
+          }),
+        }));
+      }
+      const conflicts: PullConflictSummary[] = [];
+      const service = new SyncPullService({
+        contentRuntime: createTestContentRuntime(),
+        getSyncToken: async () => createToken(),
+        getSyncStore: () => store,
+        getRemoteVaultKey: () => TEST_VAULT_KEY,
+        shouldApplyRemotePath: (path, deleted) => deleted || isPortableVaultPath(path),
+        vaultAdapter: adapter,
+        blobClient: createBlobClient({
+          blobs: {
+            "blob-b": await encryptTestBlob("blob-b", new TextEncoder().encode("content B")),
+          },
+        }),
+        applyWindowSize: paginated ? 1 : undefined,
+        onConflict: (event) => conflicts.push(event),
+        onProgress: ignoreProgress,
+      });
+      const pages = paginated
+        ? commits.map((commit, index) => ({
+            cursor: commit.cursor,
+            hasMore: index === 0,
+            commits: [commit],
+          }))
+        : [{ cursor: 3, hasMore: false, commits }];
+      await service.pullOnce(createRealtimeSession({ pages }));
+
+      expect(adapter.text("a.md")).toBe("content A");
+      expect(adapter.files.has("bad:name.md")).toBe(false);
+      expect(conflicts).toHaveLength(1);
+      expect(adapter.text(conflicts[0]!.conflictPath!)).toBe("content B");
+      expect(await store.getLocalStateById("a")).toMatchObject({ path: "a.md" });
+      expect(await store.getRemoteStateById("a")).toMatchObject({
+        path: "bad:name.md", revision: 2,
+      });
+      expect(await store.getCursor()).toBe(3);
+      await store.close();
+    },
+  );
+
   it("skips remote vault config writes when the current rules reject the path", async () => {
     const store = createTestSyncStore();
     const adapter = createVaultAdapter({
