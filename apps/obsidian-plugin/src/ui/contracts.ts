@@ -38,11 +38,15 @@ export type SynchStorageDisplayState =
   | "near_limit"
   | "needs_more_storage";
 
-export interface SynchFileSizeBlockedFile {
+export interface SynchBlockedSyncFile {
   path: string;
+  reason?: "file_too_large" | "incompatible_path";
   encryptedSizeBytes: number | null;
   maxFileSizeBytes: number | null;
 }
+
+/** @deprecated Use `SynchBlockedSyncFile`. */
+export type SynchFileSizeBlockedFile = SynchBlockedSyncFile;
 
 export type SynchCommunityPluginUpdateStatus =
   | {

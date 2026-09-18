@@ -64,7 +64,9 @@ import {
   type SyncEntryVersionsPage,
 } from "./version-history-service";
 import {
+  listBlockedSyncFiles,
   listFileSizeBlockedFiles,
+  type SyncBlockedSyncFile,
   type SyncFileSizeBlockedFile,
 } from "../engine/file-size-blocked";
 import {
@@ -316,11 +318,12 @@ export class SyncEngine {
       },
     });
     this.syncPullService = new SyncPullService({
+      onRemoteStatesChange: () => this.deps.onFileSizeBlockedFilesChange?.(),
       getSyncToken: async () => await this.deps.getSyncToken(),
       getSyncStore: () => this.syncStore,
       getRemoteVaultKey: () => this.deps.getRemoteVaultKey(),
-      shouldApplyRemotePath: (path) =>
-        shouldApplyRemoteVaultPath(path, this.vaultPathPolicyRules()),
+      shouldApplyRemotePath: (path, deleted) =>
+        shouldApplyRemoteVaultPath(path, this.vaultPathPolicyRules(), { deleted }),
       shouldUseLatestRemoteVersion: (path) =>
         shouldUseLatestRemoteVaultConfig(path, this.vaultPathPolicyRules()),
       eventGate: this.syncEventGate,
@@ -642,6 +645,16 @@ export class SyncEngine {
     return this.deps.getConfigDir();
   }
 
+  async listBlockedSyncFiles(): Promise<SyncBlockedSyncFile[]> {
+    const store = this.syncStore;
+    if (!store) {
+      return [];
+    }
+
+    return await listBlockedSyncFiles(store, this.deps.getRemoteVaultKey());
+  }
+
+  /** @deprecated Use `listBlockedSyncFiles`. */
   async listFileSizeBlockedFiles(): Promise<SyncFileSizeBlockedFile[]> {
     const store = this.syncStore;
     if (!store) {
@@ -784,5 +797,5 @@ export class SyncEngine {
   }
 }
 
-export type { SyncFileSizeBlockedFile } from "../engine/file-size-blocked";
+export type { SyncBlockedSyncFile, SyncFileSizeBlockedFile } from "../engine/file-size-blocked";
 export type SyncEngineEntryVersionsPage = SyncEntryVersionsPage;

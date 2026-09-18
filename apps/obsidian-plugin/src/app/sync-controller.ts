@@ -40,6 +40,7 @@ import {
   type SyncDeletedEntriesRestoreResult,
   type SyncDeletedEntriesPurgeResult,
   type SyncEngineEntryVersionsPage,
+  type SyncBlockedSyncFile,
   type SyncFileSizeBlockedFile,
   type SyncEntryVersionPreview,
   getUserVisibleSyncDisplayPercent,
@@ -474,12 +475,17 @@ export class SyncController {
     this.setSyncStatus("attention_needed");
   }
 
-  async listFileSizeBlockedFiles(): Promise<SyncFileSizeBlockedFile[]> {
+  async listBlockedSyncFiles(): Promise<SyncBlockedSyncFile[]> {
     if (!this.deps.hasActiveRemoteVaultSession() || !this.deps.hasAuthenticatedSession()) {
       return [];
     }
 
-    return await this.syncEngine.listFileSizeBlockedFiles();
+    return await this.syncEngine.listBlockedSyncFiles();
+  }
+
+  /** @deprecated Use `listBlockedSyncFiles`. */
+  async listFileSizeBlockedFiles(): Promise<SyncFileSizeBlockedFile[]> {
+    return await this.listBlockedSyncFiles();
   }
 
   async listEntryVersionsForPath(

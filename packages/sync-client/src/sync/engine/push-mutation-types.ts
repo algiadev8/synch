@@ -77,7 +77,7 @@ export interface PushMutationStore
 
 export interface SkippedPushMutation {
   skipped: true;
-  reason: "file_too_large" | "storage_quota_exceeded";
+  reason: "file_too_large" | "incompatible_path" | "storage_quota_exceeded";
 }
 
 export type PreparePushMutationResult = PreparedPushMutation | SkippedPushMutation | null;

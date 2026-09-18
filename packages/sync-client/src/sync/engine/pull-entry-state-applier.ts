@@ -44,7 +44,7 @@ export interface PullEntryStateApplierDeps extends SyncContentRuntimeDeps {
   vaultAdapter: PullEntryStateVaultAdapter;
   eventGate?: SyncEventGateLike;
   blobClient: Pick<SyncBlobClient, "downloadBlob">;
-  shouldApplyRemotePath?: (path: string) => boolean;
+  shouldApplyRemotePath?: (path: string, deleted: boolean) => boolean;
   shouldUseLatestRemoteVersion?: (path: string) => boolean;
   prepareConcurrency?: number;
   onConflict?: (event: PullConflictEvent) => void;
@@ -196,11 +196,10 @@ export class PullEntryStateApplier {
       };
     }
 
-    const { plans: allPlans, deferred, superseded } = await this.manifestPlanner.planManifest(
+    const { plans, deferred, superseded, skipped } = await this.manifestPlanner.planManifest(
       store, manifest, { deferExternalPathOwners: !options.finalWindow },
     );
-    const plans = allPlans.filter((plan) => this.shouldApplyPlanToVault(plan));
-    await this.applySkippedRemoteStates(store, allPlans, plans);
+    await this.applySkippedRemoteStates(store, skipped);
     await this.markAlreadyCurrentVaultWrites(store, plans);
     const supersededWithPaths = await Promise.all(superseded.map(async (item) => ({
       item, existingPath: (await store.getEntryById(item.state.entryId))?.path ?? null,
@@ -268,7 +267,7 @@ export class PullEntryStateApplier {
       conflictsCreated: plans.reduce((count, plan) => count +
         (plan.pathConflict?.conflictPath ? 1 : 0) + (plan.pendingConflict?.conflictPath ? 1 : 0), 0),
       deferred,
-      completedStates: [...allPlans, ...superseded].map(({ state }) => ({
+      completedStates: [...plans, ...superseded, ...skipped].map(({ state }) => ({
         entryId: state.entryId, revision: state.revision,
       })),
     };
@@ -300,34 +299,17 @@ export class PullEntryStateApplier {
     }
   }
 
-  private shouldApplyPlanToVault(plan: PlannedEntryState): boolean {
-    return (
-      !plan.metadata.path ||
-      this.deps.shouldApplyRemotePath?.(plan.metadata.path) !== false
-    );
-  }
-
   private async applySkippedRemoteStates(
     store: PullEntryStateStore,
-    allPlans: PlannedEntryState[],
-    appliedPlans: PlannedEntryState[],
+    skipped: PullEntryStateManifestItem[],
   ): Promise<void> {
-    if (allPlans.length === appliedPlans.length) {
-      return;
-    }
-
-    const applied = new Set(appliedPlans);
-    for (const plan of allPlans) {
-      if (applied.has(plan)) {
-        continue;
-      }
-
+    for (const plan of skipped) {
       await store.applyRemoteState({
         entryId: plan.state.entryId,
         path: plan.metadata.path,
         revision: plan.state.revision,
         blobId: plan.state.deleted ? null : plan.state.blobId,
-        hash: plan.hash,
+        hash: plan.metadata.hash,
         deleted: plan.state.deleted,
         updatedAt: plan.state.updatedAt,
       });

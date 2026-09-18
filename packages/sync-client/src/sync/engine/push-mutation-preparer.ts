@@ -24,6 +24,7 @@ import {
   toCommitPayload,
 } from "./push-mutation-shared";
 import { isAutoMergeTextPath } from "./text-merge-policy";
+import { isPortableVaultPath } from "../core/portable-path";
 
 export class PushMutationPreparer {
   private readonly blobClient: Pick<SyncBlobClient, "uploadBlob">;
@@ -57,6 +58,11 @@ export class PushMutationPreparer {
         localHash: null,
         encryptedBytes: null,
       };
+    }
+
+    if (!isPortableVaultPath(metadata.path)) {
+      await this.blockIncompatiblePathUpsert(store, mutation);
+      return { skipped: true, reason: "incompatible_path" };
     }
 
     if (!mutation.blobId) {
@@ -188,6 +194,19 @@ export class PushMutationPreparer {
       blockedReason: "file_too_large",
       blockedEncryptedSizeBytes: encryptedSizeBytes,
       blockedMaxFileSizeBytes: maxFileSizeBytes,
+    });
+  }
+
+  private async blockIncompatiblePathUpsert(
+    store: PushMutationStore,
+    mutation: PendingMutationRow,
+  ): Promise<void> {
+    await store.updateDirtyEntry({
+      ...mutation,
+      status: "blocked",
+      blockedReason: "incompatible_path",
+      blockedEncryptedSizeBytes: null,
+      blockedMaxFileSizeBytes: null,
     });
   }
 
