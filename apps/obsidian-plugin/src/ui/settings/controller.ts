@@ -1,5 +1,9 @@
 import type { UserVisibleSyncProgress } from "@synch/sync-client/engine";
-import type { SyncFileRules, VaultConfigSyncRules } from "@synch/sync-client/core";
+import type {
+  SyncConflictPolicy,
+  SyncFileRules,
+  VaultConfigSyncRules,
+} from "@synch/sync-client/core";
 import type { AuthReadiness } from "@synch/sync-client/auth";
 import type {
   SynchDeletedFileCursor,
@@ -42,6 +46,8 @@ export interface SynchSettingsController {
   listFileSizeBlockedFiles(): Promise<SynchFileSizeBlockedFile[]>;
   isSyncEnabled(): boolean;
   setSyncEnabled(enabled: boolean): Promise<void>;
+  getConflictPolicy(): SyncConflictPolicy;
+  setConflictPolicy(value: SyncConflictPolicy): Promise<void>;
   getSyncIntervalMs(): number;
   setSyncIntervalMs(value: number): Promise<void>;
   syncNow(): Promise<void>;

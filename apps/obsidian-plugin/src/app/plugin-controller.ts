@@ -62,6 +62,7 @@ import {
   normalizeSyncFileRules,
   normalizeVaultPath,
   type SyncFileRules,
+  type SyncConflictPolicy,
   type VaultConfigSyncRules,
   isReservedSyncPath,
   type PresenceSelection,
@@ -170,6 +171,7 @@ export class SynchPluginController implements SynchSettingsController {
     getSyncFileRules: () => this.getSyncFileRules(),
     getVaultConfigSyncRules: () => this.getVaultConfigSyncRules(),
     getSyncIntervalMs: () => this.getSyncIntervalMs(),
+    getConflictPolicy: () => this.getConflictPolicy(),
     hasActiveRemoteVaultSession: () => this.hasActiveRemoteVaultSession(),
     hasConnectedRemoteVault: () => this.hasConnectedRemoteVault(),
     hasAuthenticatedSession: () => this.hasAuthenticatedSession(),
@@ -433,6 +435,16 @@ export class SynchPluginController implements SynchSettingsController {
       this.refreshUi();
     }
     await this.ensureAutoSyncState();
+  }
+
+  getConflictPolicy(): SyncConflictPolicy {
+    return this.settingsStore.getSnapshot().conflictPolicy;
+  }
+
+  async setConflictPolicy(value: SyncConflictPolicy): Promise<void> {
+    if (await this.settingsStore.updateConflictPolicy(value)) {
+      this.refreshUi();
+    }
   }
 
   getSyncIntervalMs(): number {

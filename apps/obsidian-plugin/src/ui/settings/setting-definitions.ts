@@ -1,4 +1,8 @@
-import type { SyncFileRules, VaultConfigSyncRules } from "@synch/sync-client/core";
+import {
+  normalizeSyncConflictPolicy,
+  type SyncFileRules,
+  type VaultConfigSyncRules,
+} from "@synch/sync-client/core";
 import type {
   App,
   SettingDefinition,
@@ -44,6 +48,7 @@ type BooleanKeys<T> = Extract<
 // their own modals, so array-valued rule keys are deliberately excluded.
 export type SynchSettingControlKey =
   | "syncIntervalMs"
+  | "conflictPolicy"
   | `fileRules.${BooleanKeys<SyncFileRules>}`
   | `vaultConfigSync.${BooleanKeys<VaultConfigSyncRules>}`;
 
@@ -262,6 +267,18 @@ export function buildSynchSettingDefinitions(
         options: syncFrequencyOptions(),
       },
     });
+    definitions.push({
+      name: t("sync.conflictPolicy"),
+      desc: t("sync.conflictPolicyDesc"),
+      control: {
+        type: "dropdown",
+        key: "conflictPolicy",
+        options: {
+          "conflict-copy": t("sync.conflictPolicyCopy"),
+          "prefer-remote": t("sync.conflictPolicyRemote"),
+        },
+      },
+    });
   }
 
   definitions.push({
@@ -280,6 +297,10 @@ export function getSynchSettingControlValue(
   controller: SynchSettingsController,
   key: string,
 ): unknown {
+  if (key === "conflictPolicy") {
+    return controller.getConflictPolicy();
+  }
+
   if (key === "syncIntervalMs") {
     return String(controller.getSyncIntervalMs());
   }
@@ -304,6 +325,11 @@ export async function setSynchSettingControlValue(
   key: string,
   value: unknown,
 ): Promise<void> {
+  if (key === "conflictPolicy") {
+    await controller.setConflictPolicy(normalizeSyncConflictPolicy(value));
+    return;
+  }
+
   if (key === "syncIntervalMs") {
     await controller.setSyncIntervalMs(Number(value));
     return;

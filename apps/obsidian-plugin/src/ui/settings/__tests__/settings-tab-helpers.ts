@@ -134,6 +134,8 @@ export function createSettingsTab(
     listFileSizeBlockedFiles: vi.fn(async () => []),
     isSyncEnabled: () => true,
     setSyncEnabled: vi.fn(async () => {}),
+    getConflictPolicy: () => "conflict-copy",
+    setConflictPolicy: vi.fn(async () => {}),
     getSyncIntervalMs: () => 0,
     setSyncIntervalMs: vi.fn(async () => {}),
     syncNow: vi.fn(async () => {}),

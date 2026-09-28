@@ -2,6 +2,8 @@
 
 ## Added
 
+- Added a conflict policy setting: keep a conflict copy (default), or prefer the remote version without saving a copy of conflicting local changes. Automatic Markdown merging is still attempted first.
+
 ## Changed
 
 - Organization members can connect to vaults without separate assignments. Encryption key approval is still required; existing passwords and connections are preserved.

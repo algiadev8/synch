@@ -266,6 +266,29 @@ describe("SynchSettingTab sync status", () => {
     expect(getExtraButtonComponents()).toEqual([]);
   });
 
+  it("offers conflict policies and persists changes through the controller", async () => {
+    const setConflictPolicy = vi.fn(async () => {});
+    const tab = createSettingsTab({
+      hasAuthenticatedSession: () => true,
+      hasConnectedRemoteVault: () => true,
+      getConflictPolicy: () => "prefer-remote",
+      setConflictPolicy,
+    });
+    tab.open();
+
+    expect(getSettingNames().at(-2)).toBe(t("sync.conflictPolicy"));
+    const dropdown = getDropdownComponents().find((control) => control.options.has("prefer-remote"));
+    expect(dropdown?.value).toBe("prefer-remote");
+    expect([...dropdown?.options.entries() ?? []]).toEqual([
+      ["conflict-copy", t("sync.conflictPolicyCopy")],
+      ["prefer-remote", t("sync.conflictPolicyRemote")],
+    ]);
+    await dropdown?.change("conflict-copy");
+    expect(setConflictPolicy).toHaveBeenCalledWith("conflict-copy");
+    await tab.setControlValue("conflictPolicy", "invalid");
+    expect(setConflictPolicy).toHaveBeenLastCalledWith("conflict-copy");
+  });
+
   it("shows sync diagnostics after the sync frequency section", async () => {
     const setSyncIntervalMs = vi.fn(async () => {});
     const tab = createSettingsTab({
@@ -277,7 +300,7 @@ describe("SynchSettingTab sync status", () => {
 
     tab.open();
 
-    expect(getSettingNames().at(-2)).toBe(t("sync.frequency"));
+    expect(getSettingNames().at(-3)).toBe(t("sync.frequency"));
     expect(getSettingNames().at(-1)).toBe(t("diagnostics.header"));
     const dropdown = getDropdownComponents()[0];
     expect(dropdown?.value).toBe("180000");
