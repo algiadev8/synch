@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Setting } from "obsidian";
+import { App, Modal, Notice, Setting, setIcon } from "obsidian";
 import {
   SharingManager,
   type SharingVault,
@@ -20,6 +20,8 @@ export class SharingModal extends Modal {
     super(app);
   }
   onOpen(): void {
+    this.modalEl.addClass("synch-sharing-modal");
+    this.contentEl.addClass("synch-sharing");
     void this.refresh();
   }
   onClose(): void {
@@ -50,32 +52,37 @@ export class SharingModal extends Modal {
     if (this.closed) return;
     this.contentEl.empty();
     this.contentEl.createEl("h2", { text: t("sharing.title") });
-    this.contentEl.createEl("p", { text: t("sharing.intro") });
-    new Setting(this.contentEl)
-      .addButton((button) =>
-        button
-          .setButtonText(t("sharing.organizations"))
-          .onClick(this.openOrganizations),
-      )
-      .addButton((button) =>
-        button.setButtonText(t("sharing.refresh")).onClick(() => {
-          void this.run(async () => {});
-        }),
-      );
+    this.contentEl.createEl("p", { text: t("sharing.summary"), cls: "synch-sharing-hint" });
     const body = this.contentEl.createDiv();
+    body.setAttribute("aria-live", "polite");
+    const loading = body.createEl("p", { text: t("sharing.loading"), cls: "synch-sharing-hint" });
+    const footer = this.contentEl.createDiv({ cls: "synch-sharing-footer" });
+    new Setting(footer).addButton((button) => {
+      button.setButtonText(t("sharing.organizations")).onClick(this.openOrganizations);
+      button.buttonEl.addClass("synch-sharing-web-link");
+      setIcon(button.buttonEl.createSpan(), "arrow-up-right");
+    });
+    new Setting(footer).addButton((button) =>
+      button.setButtonText(t("sharing.refresh")).onClick(() => {
+        void this.run(async () => {});
+      }),
+    );
     try {
       const organizations = await this.manager.client.organizations();
       if (this.closed) return;
+      loading.remove();
+      let vaultCount = 0;
       for (const organization of organizations) {
         const vaults = organization.vaults.filter(
           (vault) =>
             vault.status === "active" || vault.status === "pending_key",
         );
         if (!vaults.length) continue;
-        body.createEl("h3", { text: organization.name });
+        vaultCount += vaults.length;
         for (const vault of vaults) {
           try {
-            await this.renderVault(body, vault, organization.sharing.enabled);
+            await this.renderVault(body, vault, organization.sharing.enabled, organization.name);
+            if (this.closed) return;
           } catch (error) {
             body.createEl("p", {
               text: error instanceof Error ? error.message : String(error),
@@ -83,7 +90,10 @@ export class SharingModal extends Modal {
           }
         }
       }
+      if (!vaultCount) body.createEl("p", { text: t("sharing.noVaults"), cls: "synch-sharing-empty" });
     } catch (error) {
+      if (this.closed) return;
+      loading.remove();
       body.createEl("p", {
         text: error instanceof Error ? error.message : String(error),
       });
@@ -93,86 +103,45 @@ export class SharingModal extends Modal {
     parent: HTMLElement,
     vault: SharingVault,
     canShare: boolean,
+    organizationName: string,
   ): Promise<void> {
-    const section = parent.createDiv();
-    section.createEl("h4", { text: vault.name });
+    const section = parent.createDiv({ cls: "synch-sharing-vault" });
+    const header = section.createDiv({ cls: "synch-sharing-vault-header" });
+    setIcon(header.createSpan({ cls: "synch-sharing-vault-icon" }), "vault");
+    const heading = header.createDiv({ cls: "synch-sharing-vault-heading" });
+    heading.createEl("h3", { text: vault.name });
+    heading.createEl("p", { text: organizationName, cls: "synch-sharing-hint" });
     const key =
       this.activeSession()?.summary.vaultId === vault.id
         ? this.activeSession()?.remoteVaultKey
         : undefined;
-    if (canShare && !(key && vault.status === "active"))
-      new Setting(section)
-        .setName(
-          t(
-            vault.status === "pending_key"
-              ? "sharing.setup"
-              : "sharing.recovery",
-          ),
-        )
-        .setDesc(t("sharing.requestHelp"))
-        .addButton((button) =>
-          button.setButtonText(t("sharing.request")).onClick(() => {
-            void this.run(async () => {
-              await this.manager.begin(vault.id);
-            });
-          }),
-        );
+    header.createSpan({
+      text: t(vault.status === "pending_key" ? "sharing.accessNeeded" : key ? "sharing.connected" : "sharing.notConnected"),
+      cls: "synch-sharing-badge",
+    });
+    const access = section.createDiv({ cls: "synch-sharing-panel" });
     if (!canShare) {
-      if (vault.shared) section.createEl("p", { text: t("sharing.suspended") });
-      else if (!key)
-        section.createEl("p", { text: t("sharing.passwordConnect") });
+      access.createEl("p", { text: t(vault.shared ? "sharing.suspended" : "sharing.unavailable"), cls: "synch-sharing-empty" });
+      return;
+    }
+    if (vault.status === "pending_key") {
+      access.createEl("p", { text: t("sharing.connectToSetUp"), cls: "synch-sharing-hint" });
       return;
     }
     const requests = await this.manager.client.requests(vault.id);
-    let localRequest: VaultKeyRequest | null = null;
-    try {
-      localRequest = await this.manager.localRequest(vault.id);
-    } catch (error) {
-      section.createEl("p", {
-        text: error instanceof Error ? error.message : String(error),
-      });
-    }
-    if (
-      localRequest?.status === "completed" &&
-      !requests.some((request) => request.id === localRequest.id)
-    )
-      requests.push(localRequest);
+    if (this.closed) return;
+    let visibleRequests = 0;
     for (const request of requests) {
-      if (request.userId === this.manager.userId) {
-        // Only the device holding the matching receiver secret can authenticate this code.
-        // Displaying an API-supplied public key on another device would trust the server.
-        if (localRequest?.id === request.id) {
-          section.createEl("p", { text: t("sharing.yourCode") });
-          section.createEl("code", {
-            text: await this.manager.recipientVerificationCode(vault.id),
-          });
-          if (request.status === "approved" || request.status === "completed")
-            this.passwordForm(
-              section,
-              (password) =>
-                this.manager.receive(
-                  vault.id,
-                  password.value,
-                  password.confirm,
-                ),
-            );
-          else section.createEl("p", { text: t("sharing.waiting") });
-        }
-        new Setting(section)
-          .setDesc(t("sharing.restartHelp"))
-          .addButton((button) =>
-            button.setButtonText(t("sharing.restart")).onClick(() => {
-              void this.run(async () => {
-                await this.manager.restart(vault.id);
-              });
-            }),
-          );
-      } else if (
-        request.status === "pending" &&
-        vault.canManage
-      ) {
-        this.approvalForm(section, vault, request, key);
+      if (request.userId !== this.manager.userId && request.status === "pending" && vault.canManage) {
+        visibleRequests++;
+        this.approvalForm(access, vault, request, key);
       }
+    }
+    if (!visibleRequests && vault.status === "active") {
+      const empty = access.createDiv({ cls: "synch-sharing-empty" });
+      setIcon(empty.createSpan(), "users");
+      empty.createEl("p", { text: t("sharing.noRequests") });
+      empty.createEl("p", { text: t("sharing.noRequestsHint"), cls: "synch-sharing-hint" });
     }
   }
   private approvalForm(
@@ -199,40 +168,6 @@ export class SharingModal extends Modal {
     setting.addButton((button) =>
       button.setButtonText(t("sharing.approve")).onClick(() => {
         void this.run(() => this.manager.approve(request, key, code));
-      }),
-    );
-  }
-  private passwordForm(
-    parent: HTMLElement,
-    action: (password: { value: string; confirm: string }) => Promise<void>,
-  ): void {
-    let value = "";
-    let confirm = "";
-    const setting = new Setting(parent)
-      .setName(t("sharing.setPassword"))
-      .setDesc(t("sharing.passwordHelp"));
-    setting.addText((text) => {
-      text.inputEl.type = "password";
-      text.inputEl.autocomplete = "new-password";
-      text.setPlaceholder(t("sharing.password")).onChange((next) => {
-        value = next;
-      });
-    });
-    setting.addText((text) => {
-      text.inputEl.type = "password";
-      text.inputEl.autocomplete = "new-password";
-      text.setPlaceholder(t("sharing.confirmPassword")).onChange((next) => {
-        confirm = next;
-      });
-    });
-    setting.addButton((button) =>
-      button.setButtonText(t("sharing.save")).onClick(() => {
-        void this.run(async () => {
-          await action({ value, confirm });
-          value = "";
-          confirm = "";
-          new Notice(t("sharing.ready"), 10000);
-        });
       }),
     );
   }

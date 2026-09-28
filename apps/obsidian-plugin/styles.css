@@ -770,3 +770,137 @@
     min-height: 44px;
   }
 }
+
+.synch-sharing-modal {
+  width: 590px;
+  max-width: calc(100vw - 32px);
+}
+
+.synch-sharing h2 {
+  margin: 0 0 8px;
+  font-size: var(--font-ui-large);
+}
+
+.synch-sharing-hint {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+
+.synch-sharing-vault + .synch-sharing-vault {
+  border-top: 1px solid var(--background-modifier-border);
+  margin-top: 24px;
+  padding-top: 8px;
+}
+
+.synch-sharing-vault-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 24px 0 20px;
+}
+
+.synch-sharing-vault-heading {
+  flex: 1;
+  min-width: 120px;
+  overflow-wrap: anywhere;
+}
+
+.synch-sharing-vault-heading h3 {
+  font-size: var(--font-ui-medium);
+  margin: 0;
+}
+
+.synch-sharing-vault-icon {
+  display: flex;
+  padding: 10px;
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+  color: var(--text-muted);
+}
+
+.synch-sharing-badge {
+  padding: 3px 7px;
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.synch-sharing-panel {
+  padding: 16px 0 8px;
+}
+
+.synch-sharing-empty {
+  text-align: center;
+  padding: 20px 8px;
+}
+
+.synch-sharing-empty > span {
+  color: var(--text-muted);
+}
+
+.synch-sharing-empty p {
+  margin: 8px 0;
+}
+
+.modal.synch-sharing-modal .synch-sharing .setting-item {
+  flex-wrap: wrap;
+  gap: 12px;
+  border: 0;
+}
+
+.synch-sharing-panel .setting-item-control {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  width: 100%;
+  gap: 8px;
+}
+
+.synch-sharing-panel input {
+  width: 100%;
+  min-width: 0;
+}
+
+.synch-sharing-footer {
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 16px;
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.modal.synch-sharing-modal .synch-sharing-footer .setting-item {
+  padding: 0;
+}
+
+.synch-sharing-footer .setting-item-info {
+  display: none;
+}
+
+.synch-sharing-footer .setting-item:last-child {
+  margin-left: auto;
+}
+
+.synch-sharing-footer .synch-sharing-web-link {
+  color: var(--text-accent);
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  white-space: normal;
+  text-align: start;
+}
+
+.synch-sharing-web-link span {
+  display: inline-flex;
+  margin-left: 6px;
+}
+
+.synch-sharing-web-link svg {
+  width: 14px;
+  height: 14px;
+}
