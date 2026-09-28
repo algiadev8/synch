@@ -75,7 +75,6 @@ async function setup() {
 	};
 }
 const actor = (id: string) => ({ id, email: `${id}@example.com` });
-const grants = [{ vaultId: "vault-a" }];
 const wrapper = (userId: string) => ({
 	version: 2,
 	keyVersion: 1,
@@ -95,11 +94,9 @@ const wrapper = (userId: string) => ({
 });
 
 describe("organization vault sharing", () => {
-	it("gives administrators every current and future vault without separate grants", async () => {
+	it.each(["admin", "member"] as const)("gives %s every current and future vault while requiring key approval", async (role) => {
 		const { service, store, db, access } = await setup();
-		const invite = await service.invite(actor("owner"), "org", {
-			email: actor("alice").email, role: "admin", vaults: [],
-		});
+		const invite = await service.invite(actor("owner"), "org", { email: actor("alice").email, role });
 		await service.resend("owner", "org", invite.id);
 		expect((await service.invitation(actor("alice"), invite.id)).vaults).toHaveLength(2);
 		await service.respond(actor("alice"), invite.id, true);
@@ -109,88 +106,72 @@ describe("organization vault sharing", () => {
 		});
 		const org = await service.organization("alice", "org");
 		expect(org.vaults).toHaveLength(3);
-		expect(org.vaults.every((v) => v.canManage && v.status === "pending_key" && !v.personal)).toBe(true);
+		expect(org.vaults.every((v) => v.canManage === (role === "admin") && v.status === "pending_key" && !v.personal && v.shared)).toBe(true);
 		expect((await vaultStore.listVaultsForUser("alice")).map((v) => v.id)).toContain(created.id);
 		expect(await store.grant(created.id, "alice")).toBeNull();
-		// Management does not require receiving the encryption key first.
-		const bob = await service.invite(actor("alice"), "org", {
-			email: actor("bob").email, role: "member", vaults: [{ vaultId: created.id }],
-		});
-		await service.respond(actor("bob"), bob.id, true);
-		await service.changeVaultMember("alice", "vault-b", "bob", true);
-		await expect(service.changeVaultMember("owner", created.id, "alice")).rejects.toMatchObject({ code: "forbidden" });
-		// Content access still requires the recipient's own encrypted wrapper.
+		expect((await service.organization("owner", "org")).vaults.every(v => v.members.some(m => m.userId === "alice" && m.status === "pending_key"))).toBe(true);
 		await expect(access.require("alice", "vault-a")).rejects.toMatchObject({ code: "vault_access_denied" });
-		const request = await service.startKeyRequest("alice", "vault-a", "admin-enrollment", "receiver-key");
-		expect((await store.grant("vault-a", "alice"))?.explicitAccess).toBe(false);
-		await service.approveKeyRequest("owner", "vault-a", request.id, {
-			version: 1, algorithm: "rsa-oaep-sha256", ciphertext: "encrypted",
-		});
+		expect(await vaultStore.readVaultBootstrapForUser("alice", "vault-a")).toBeNull();
+		const request = await service.startKeyRequest("alice", "vault-a", "enrollment", "receiver-key");
+		await expect(service.completeKeyRequest("alice", "vault-a", request.id, wrapper("alice"))).rejects.toMatchObject({ code: "request_changed" });
+		await service.approveKeyRequest("owner", "vault-a", request.id, { version: 1, algorithm: "rsa-oaep-sha256", ciphertext: "encrypted" });
 		await service.completeKeyRequest("alice", "vault-a", request.id, wrapper("alice"));
 		expect(await access.require("alice", "vault-a")).toBe(1);
-		// Current organization role authorizes key sharing, not legacy vault roles.
-		await service.changeVaultMember("alice", "vault-a", "bob", true);
-		const bobRequest = await service.startKeyRequest("bob", "vault-a", "bob-enrollment", "bob-key");
-		await service.approveKeyRequest("alice", "vault-a", bobRequest.id, {
-			version: 1, algorithm: "rsa-oaep-sha256", ciphertext: "encrypted",
-		});
-		await service.changeMember("owner", "org", "alice", "member");
-		expect((await store.grant("vault-a", "alice"))?.status).toBe("revoked");
-		expect(await store.passwordWrapper("vault-a", "alice")).toBeNull();
-		expect((await service.organization("alice", "org")).vaults).toHaveLength(0);
-		await expect(access.require("alice", "vault-a")).rejects.toMatchObject({ code: "vault_access_denied" });
-		await expect(service.changeVaultMember("alice", "vault-a", "bob")).rejects.toMatchObject({ code: "forbidden" });
+		await expect(access.require("alice", created.id)).rejects.toMatchObject({ code: "vault_access_denied" });
+		expect((await service.startKeyRequest("alice", created.id, "future-enrollment", "receiver-key")).purpose).toBe("enrollment");
 	});
 
-	it("preserves explicit member access across promotion and demotion without granting members management rights", async () => {
-		const { service, store, db } = await setup();
-		const invite = await service.invite(actor("owner"), "org", {
-			email: actor("alice").email, role: "member", vaults: grants,
-		});
+	it("preserves keys and pending enrollment across role changes while removing management authority", async () => {
+		const { service, store, access, db } = await setup();
+		const invite = await service.invite(actor("owner"), "org", { email: actor("alice").email, role: "admin" });
 		await service.respond(actor("alice"), invite.id, true);
-		await db.update(s.vaultMembership).set({ status: "active" }).where(eq(s.vaultMembership.userId, "alice"));
-		await expect(service.requireVault("alice", "vault-a", true)).rejects.toMatchObject({ code: "forbidden" });
-		await service.changeMember("owner", "org", "alice", "admin");
-		expect((await service.organization("alice", "org")).vaults).toHaveLength(2);
-		await service.startKeyRequest("alice", "vault-b", "inherited-key", "receiver-key");
+		const request = await service.startKeyRequest("alice", "vault-a", "alice-key", "receiver-key");
+		await service.approveKeyRequest("owner", "vault-a", request.id, { version: 1, algorithm: "rsa-oaep-sha256", ciphertext: "encrypted" });
+		await service.completeKeyRequest("alice", "vault-a", request.id, wrapper("alice"));
+		await service.startKeyRequest("alice", "vault-b", "pending-key", "receiver-key");
+		const bob = await service.invite(actor("alice"), "org", { email: actor("bob").email, role: "member" });
+		await service.respond(actor("bob"), bob.id, true);
+		const bobRequest = await service.startKeyRequest("bob", "vault-a", "bob-key", "bob-key");
 		await service.changeMember("owner", "org", "alice", "member");
-		expect((await store.grant("vault-a", "alice"))?.status).toBe("active");
-		expect((await store.grant("vault-b", "alice"))?.status).toBe("revoked");
-		expect((await store.keyRequest("inherited-key"))?.status).toBe("canceled");
-		expect((await service.organization("alice", "org")).vaults.map((v) => v.id)).toEqual(["vault-a"]);
+		expect(await store.passwordWrapper("vault-a", "alice")).toEqual(wrapper("alice"));
+		expect(await access.require("alice", "vault-a")).toBe(1);
+		expect((await store.keyRequest("pending-key"))?.status).toBe("pending");
+		expect((await service.organization("alice", "org")).vaults).toHaveLength(2);
+		await expect(service.requireVault("alice", "vault-a", true)).rejects.toMatchObject({ code: "forbidden" });
+		await expect(service.approveKeyRequest("alice", "vault-a", bobRequest.id, { version: 1, algorithm: "rsa-oaep-sha256", ciphertext: "encrypted" })).rejects.toMatchObject({ code: "forbidden" });
+		await expect(service.invite(actor("alice"), "org", { email: actor("carol").email, role: "member" })).rejects.toMatchObject({ code: "forbidden" });
+		expect(await new DrizzleVaultStore(db).readVaultBootstrapForUser("alice", "vault-a")).not.toBeNull();
 		await service.changeMember("owner", "org", "alice", "admin");
-		await service.startKeyRequest("alice", "vault-b", "renewed-key", "new-receiver-key");
-		expect((await store.grant("vault-b", "alice"))?.accessVersion).toBeGreaterThan(1);
+		expect(await access.require("alice", "vault-a")).toBe(1);
 	});
 
-	it("reserves three seats including the owner and grants only selected vaults after acceptance", async () => {
-		const { service, store, access } = await setup();
-		const a = await service.invite(actor("owner"), "org", {
-			email: actor("alice").email,
-			role: "member",
-			vaults: grants,
-		});
-		await service.invite(actor("owner"), "org", {
-			email: actor("bob").email,
-			role: "member",
-			vaults: grants,
-		});
-		await expect(
-			service.invite(actor("owner"), "org", {
-				email: actor("carol").email,
-				role: "member",
-				vaults: grants,
-			}),
-		).rejects.toMatchObject({ code: "invitation_conflict" });
+	it("reserves three seats including the owner without requiring any vaults", async () => {
+		const { service, store, db } = await setup();
+		await db.delete(s.vault);
+		const a = await service.invite(actor("owner"), "org", { email: actor("alice").email, role: "member" });
+		await service.invite(actor("owner"), "org", { email: actor("bob").email, role: "member" });
+		await expect(service.invite(actor("owner"), "org", { email: actor("carol").email, role: "member" })).rejects.toMatchObject({ code: "invitation_conflict" });
+		await service.resend("owner", "org", a.id);
 		await service.respond(actor("alice"), a.id, true);
-		expect((await store.grant("vault-a", "alice"))?.status).toBe("pending_key");
-		expect(await store.grant("vault-b", "alice")).toBeNull();
-		await expect(access.require("alice", "vault-a")).rejects.toMatchObject({
-			code: "vault_access_denied",
-		});
-		const org = await service.organization("alice", "org");
-		expect(org.vaults.map((v) => v.id)).toEqual(["vault-a"]);
-		expect(org.members.map((m) => m.id)).toEqual(["alice"]);
+		expect(await store.membership("org", "alice")).not.toBeNull();
+		expect((await service.organization("alice", "org")).vaults).toEqual([]);
+	});
+
+	it("includes existing members with missing or revoked enrollment without reusing revoked keys", async () => {
+		const { service, store, db, access } = await setup();
+		await db.insert(s.member).values({ id: "existing-member", organizationId: "org", userId: "alice", role: "member", createdAt: new Date() });
+		await db.insert(s.vaultMembership).values({ vaultId: "vault-a", userId: "alice", status: "revoked", accessVersion: 4, revokedAt: new Date() });
+		await db.insert(s.vaultKeyWrapper).values({ id: "old-key", vaultId: "vault-a", userId: "alice", keyVersion: 1, kind: "password", envelopeJson: wrapper("alice"), revokedAt: new Date() });
+		expect((await service.organization("alice", "org")).vaults.map(v => v.status)).toEqual(["pending_key", "pending_key"]);
+		const request = await service.startKeyRequest("alice", "vault-a", "new-key", "receiver-key");
+		expect(request.accessVersion).toBe(5);
+		expect(await store.passwordWrapper("vault-a", "alice")).toBeNull();
+		await expect(access.require("alice", "vault-a")).rejects.toMatchObject({ code: "vault_access_denied" });
+		await service.startKeyRequest("alice", "vault-b", "second-key", "receiver-key");
+		await service.changeMember("owner", "org", "alice");
+		expect((await store.keyRequest("new-key"))?.status).toBe("canceled");
+		expect((await store.keyRequest("second-key"))?.status).toBe("canceled");
+		await expect(service.startKeyRequest("alice", "vault-b", "after-removal", "receiver-key")).rejects.toMatchObject({ code: "forbidden" });
 	});
 	it("rejects privilege escalation, wrong recipients, foreign vaults and expired invitations", async () => {
 		const { service, db, store, setPlan } = await setup();
@@ -211,7 +192,6 @@ describe("organization vault sharing", () => {
 			service.invite(actor("alice"), "org", {
 				email: actor("bob").email,
 				role: "admin",
-				vaults: grants,
 			}),
 		).rejects.toMatchObject({ code: "forbidden" });
 		await expect(
@@ -250,17 +230,10 @@ describe("organization vault sharing", () => {
 				isCreator: true,
 				status: "active",
 			});
-		await expect(
-			service.invite(actor("owner"), "org", {
-				email: actor("bob").email,
-				role: "member",
-				vaults: [{ vaultId: "foreign-vault" }],
-			}),
-		).rejects.toMatchObject({ code: "forbidden" });
+		await expect(service.startKeyRequest("alice", "foreign-vault", "foreign", "receiver-key")).rejects.toMatchObject({ code: "forbidden" });
 		const invite = await service.invite(actor("owner"), "org", {
 			email: actor("bob").email,
 			role: "member",
-			vaults: grants,
 		});
 		await expect(
 			service.respond(actor("carol"), invite.id, true),
@@ -286,7 +259,6 @@ describe("organization vault sharing", () => {
 				service.invite(actor("owner"), "org", {
 					email: actor(id).email,
 					role: "member",
-					vaults: grants,
 				}),
 			),
 		);
@@ -328,7 +300,6 @@ describe("organization vault sharing", () => {
 		const invite = await service.invite(actor("owner"), "org", {
 			email: actor("alice").email,
 			role: "member",
-			vaults: grants,
 		});
 		await service.respond(actor("alice"), invite.id, true);
 		const request = await service.startKeyRequest(
@@ -388,7 +359,7 @@ describe("organization vault sharing", () => {
 			{ baseURL: "https://example.com", requireVerifiedEmail: true },
 		);
 		expect(
-			await failing.changeVaultMember("owner", "vault-a", "alice"),
+			await failing.changeMember("owner", "org", "alice"),
 		).toEqual({ pending: true });
 		expect((await store.refreshes()).length).toBeGreaterThan(0);
 		expect(await service.flushRefreshes()).toBe(true);
@@ -400,7 +371,6 @@ describe("organization vault sharing", () => {
 		const a = await service.invite(actor("owner"), "org", {
 			email: actor("alice").email,
 			role: "member",
-			vaults: grants,
 		});
 		await service.respond(actor("alice"), a.id, true);
 		const req = await service.startKeyRequest(
@@ -421,7 +391,6 @@ describe("organization vault sharing", () => {
 			wrapper("alice"),
 		);
 		expect(await access.require("alice", "vault-a")).toBe(1);
-		expect((await store.grant("vault-a", "alice"))?.explicitAccess).toBe(true);
 		const recovery = await service.startKeyRequest(
 			"alice",
 			"vault-a",
@@ -429,7 +398,7 @@ describe("organization vault sharing", () => {
 			"new-public-key",
 		);
 		expect(recovery.purpose).toBe("recovery");
-		await service.changeVaultMember("owner", "vault-a", "alice");
+		await service.changeMember("owner", "org", "alice");
 		await expect(
 			service.completeKeyRequest(
 				"alice",
@@ -443,12 +412,8 @@ describe("organization vault sharing", () => {
 		await expect(access.require("alice", "vault-a")).rejects.toMatchObject({
 			code: "vault_access_denied",
 		});
-		await service.changeVaultMember(
-			"owner",
-			"vault-a",
-			"alice",
-			true,
-		);
+		const reinvite = await service.invite(actor("owner"), "org", { email: actor("alice").email, role: "member" });
+		await service.respond(actor("alice"), reinvite.id, true);
 		const renewed = await service.startKeyRequest(
 			"alice",
 			"vault-a",
@@ -473,15 +438,14 @@ describe("organization vault sharing", () => {
 		const a = await service.invite(actor("owner"), "org", {
 			email: actor("alice").email,
 			role: "member",
-			vaults: grants,
 		});
 		await service.respond(actor("alice"), a.id, true);
 		setPlan("free");
 		await expect(access.require("owner", "vault-a")).rejects.toMatchObject({
 			code: "sharing_suspended",
 		});
-		expect(await access.require("owner", "vault-b")).toBe(1);
-		expect((await store.grant("vault-a", "alice"))?.status).toBe("pending_key");
+		await expect(access.require("owner", "vault-b")).rejects.toMatchObject({ code: "sharing_suspended" });
+		expect((await service.organization("alice", "org")).vaults.every(v => v.status === "pending_key")).toBe(true);
 		setPlan("plus");
 		expect(await access.require("owner", "vault-a")).toBe(1);
 	});

@@ -333,7 +333,7 @@ describe("vault integration", () => {
 		expect(first.vaultName).toBe(second.vaultName);
 	});
 
-	it("does not list organization vaults without a vault grant", async () => {
+	it("lists organization vaults before key approval but denies sync", async () => {
 		const primary = await signUpAndCreateVault();
 		const secondary = await signUpAndCreateVault();
 
@@ -348,7 +348,7 @@ describe("vault integration", () => {
 		});
 
 		expect(listed.response.status).toBe(200);
-		expect(listed.json?.vaults.some((vault) => vault.id === primary.vaultId)).toBe(false);
+		expect(listed.json?.vaults.some((vault) => vault.id === primary.vaultId)).toBe(true);
 
 		const denied = await jsonRequest("/v1/sync/token", {
 			method: "POST",

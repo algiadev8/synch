@@ -319,7 +319,7 @@ describe("self-hosted Node runtime: end-to-end sync", () => {
         ownerSocket.send(JSON.stringify({ type: "commit_mutations", requestId: `commit-${revision}`, mutations: [{ mutationId: `mutation-${revision}`, entryId: "shared-file", op: "upsert", baseRevision: revision, blobId: `history-${revision}`, encryptedMetadata: `metadata-${revision}` }] }));
         await nextMessage(ownerSocket, message => message.type === "commit_mutations_committed");
       }
-      const invite = await request(owner.sessionCookie, `/v1/organizations/${organizationId}/invitations`, "POST", { email: "member@test.invalid", role: "member", vaults: [{ vaultId }] });
+      const invite = await request(owner.sessionCookie, `/v1/organizations/${organizationId}/invitations`, "POST", { email: "member@test.invalid", role: "member" });
       expect(invite.response.status).toBe(201);
       expect((await request(memberCookie, `/v1/invitations/${invite.json.id}/accept`, "POST")).response.status).toBe(200);
       expect((await request(memberCookie, `/v1/vaults/${vaultId}/bootstrap`)).response.status).toBe(403);
@@ -363,7 +363,7 @@ describe("self-hosted Node runtime: end-to-end sync", () => {
       const history = await nextMessage(memberSocket, message => message.type === "entry_versions_listed");
       expect(history).toMatchObject({ versions: expect.arrayContaining([expect.objectContaining({ blobId: "history-1" })]) });
       const closed = new Promise<number>(resolve => memberSocket.once("close", code => resolve(code)));
-      expect((await request(owner.sessionCookie, `/v1/vaults/${vaultId}/members/${userId}`, "DELETE")).response.status).toBe(200);
+      expect((await request(owner.sessionCookie, `/v1/organizations/${organizationId}/members/${userId}`, "DELETE")).response.status).toBe(200);
       expect(await closed).toBe(1012);
       const deniedBlob = await fetch(`${baseUrl}/v1/vaults/${vaultId}/blobs/history-1`, { headers: { authorization: `Bearer ${token}` } });
       expect(deniedBlob.status).toBe(403);

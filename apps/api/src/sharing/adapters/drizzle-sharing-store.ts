@@ -1,4 +1,4 @@
-import type { SharingStore, InvitationRecord } from "../application/store";
+import type { SharingStore, InvitationRecord, CreateInvitation } from "../application/store";
 import {
 	and,
 	asc,
@@ -10,12 +10,10 @@ import {
 	isNull,
 	ne,
 	sql,
-	type SQL,
 } from "drizzle-orm";
 import type { AppDb } from "../../db/client";
 import * as s from "../../db/d1";
 import type {
-	VaultGrant,
 	KeyRequest,
 	PasswordEnvelope,
 } from "../application/types";
@@ -184,16 +182,6 @@ export class DrizzleSharingStore implements SharingStore {
 			)[0] ?? null
 		);
 	}
-	async invitationGrants(invitationId: string) {
-		return this.db
-			.select({
-				vaultId: s.invitationVault.vaultId,
-				name: s.vault.name,
-			})
-			.from(s.invitationVault)
-			.innerJoin(s.vault, eq(s.vault.id, s.invitationVault.vaultId))
-			.where(eq(s.invitationVault.invitationId, invitationId));
-	}
 	async audit(
 		organizationId: string,
 		actorId: string,
@@ -212,14 +200,7 @@ export class DrizzleSharingStore implements SharingStore {
 			});
 	}
 
-	async createInvitation(input: {
-		organizationId: string;
-		email: string;
-		role: string;
-		inviterId: string;
-		grants: VaultGrant[];
-		memberLimit: number;
-	}) {
+	async createInvitation(input: CreateInvitation) {
 		const id = crypto.randomUUID();
 		const now = Date.now();
 		const expires = now + 48 * 60 * 60 * 1000;
@@ -234,17 +215,6 @@ export class DrizzleSharingStore implements SharingStore {
         (SELECT count(*) FROM invitation WHERE organization_id=${input.organizationId} AND status='pending' AND expires_at>${now})
       ) < ${input.memberLimit}) RETURNING id`);
 		if (!rows.length) return null;
-		try {
-			if (input.grants.length) await this.db
-				.insert(s.invitationVault)
-				.values(input.grants.map((g) => ({ invitationId: id, vaultId: g.vaultId })));
-		} catch (error) {
-			await this.db
-				.update(s.invitation)
-				.set({ status: "canceled" })
-				.where(eq(s.invitation.id, id));
-			throw error;
-		}
 		return this.invitation(id);
 	}
 	async setInvitationStatus(id: string, status: string) {
@@ -257,9 +227,8 @@ export class DrizzleSharingStore implements SharingStore {
 	async acceptInvitation(
 		invite: InvitationRecord,
 		userId: string,
-		grants: VaultGrant[],
 	) {
-		// Acceptance and grant creation are atomic. A conditional source prevents replay
+		// Membership, sharing state and acceptance are atomic. A conditional source prevents replay
 		// after cancellation, expiry or prior acceptance from restoring revoked access.
 		const pending = sql`exists (select 1 from invitation where id=${invite.id} and status='pending' and expires_at>${Date.now()})`;
 		const memberId = crypto.randomUUID();
@@ -284,41 +253,13 @@ export class DrizzleSharingStore implements SharingStore {
 						),
 					),
 			),
-			...grants.map((g) =>
-				this.db
-					.insert(s.vaultMembership)
-					.select(
-						this.db
-							.select({
-								vaultId: sql<string>`${g.vaultId}`.as("vaultId"),
-								userId: sql<string>`${userId}`.as("userId"),
-								accessVersion: sql<number>`1`.as("accessVersion"),
-								isCreator: sql<boolean>`0`.as("isCreator"),
-								explicitAccess: sql<boolean>`1`.as("explicitAccess"),
-								status: sql<string>`'pending_key'`.as("status"),
-								joinedAt: sql<Date>`${Date.now()}`.as("joinedAt"),
-								revokedAt: sql<Date>`null`.as("revokedAt"),
-							})
-							.from(s.invitation)
-							.where(and(eq(s.invitation.id, invite.id), pending)),
-					)
-					.onConflictDoUpdate({
-						target: [s.vaultMembership.vaultId, s.vaultMembership.userId],
-						set: {
-							explicitAccess: true,
-							status: "pending_key",
-							revokedAt: null,
-							accessVersion: sql`${s.vaultMembership.accessVersion}+1`,
-						},
-						setWhere: eq(s.vaultMembership.status, "revoked"),
-					}),
-			),
-			...grants.map((g) =>
-				this.db
-					.update(s.vault)
-					.set({ sharedAt: sql`coalesce(${s.vault.sharedAt}, ${Date.now()})` })
-					.where(and(eq(s.vault.id, g.vaultId), pending)),
-			),
+			this.db.update(s.vault)
+				.set({ sharedAt: sql`coalesce(${s.vault.sharedAt}, ${Date.now()})` })
+				.where(and(eq(s.vault.organizationId, invite.organizationId), isNull(s.vault.deletedAt), pending)),
+			this.db.insert(s.sharingRefresh).select(
+				this.db.select({ vaultId: s.vault.id, revision: sql<string>`${crypto.randomUUID()}`.as("revision"), createdAt: sql<number>`${Date.now()}`.as("createdAt") })
+					.from(s.vault).where(and(eq(s.vault.organizationId, invite.organizationId), isNull(s.vault.deletedAt), pending)),
+			).onConflictDoUpdate({ target: s.sharingRefresh.vaultId, set: { revision: crypto.randomUUID(), createdAt: Date.now() } }),
 			this.db
 				.update(s.invitation)
 				.set({ status: "accepted" })
@@ -328,131 +269,50 @@ export class DrizzleSharingStore implements SharingStore {
 		return (results[results.length - 1] as unknown[]).length > 0;
 	}
 
-	async addGrant(vaultId: string, userId: string) {
-		await this.db.batch([
-			this.db
-				.insert(s.vaultMembership)
-				.values({ vaultId, userId, explicitAccess: true, status: "pending_key" })
-				.onConflictDoUpdate({
-					target: [s.vaultMembership.vaultId, s.vaultMembership.userId],
-					set: {
-						explicitAccess: true,
-						status: "pending_key",
-						revokedAt: null,
-						accessVersion: sql`${s.vaultMembership.accessVersion}+1`,
-					},
-					setWhere: eq(s.vaultMembership.status, "revoked"),
-				}),
-			this.db
-				.update(s.vault)
-				.set({ sharedAt: sql`coalesce(${s.vault.sharedAt}, ${Date.now()})` })
-				.where(eq(s.vault.id, vaultId)),
-		]);
-	}
-	async ensureManagerGrant(vaultId: string, userId: string) {
-		// Materialize only the key-enrollment state. Management is inherited from
-		// the organization, including for vaults created after the manager joined.
-		await this.db.batch([
-			this.db.insert(s.vaultMembership).select(sql`
-				SELECT v.id, m.user_id, 1, 0, 0, 'pending_key', ${Date.now()}, NULL
-				FROM vault v JOIN member m ON m.organization_id=v.organization_id
-				WHERE v.id=${vaultId} AND v.deleted_at IS NULL AND m.user_id=${userId} AND m.role IN ('owner','admin')
-			`).onConflictDoUpdate({
-				target: [s.vaultMembership.vaultId, s.vaultMembership.userId],
-				set: { explicitAccess: false, status: "pending_key", revokedAt: null, accessVersion: sql`${s.vaultMembership.accessVersion}+1` },
-				setWhere: eq(s.vaultMembership.status, "revoked"),
-			}),
-			this.db.update(s.vault).set({ sharedAt: sql`coalesce(${s.vault.sharedAt},${Date.now()})` }).where(and(
-				eq(s.vault.id, vaultId),
-				sql`(SELECT count(*) FROM vault_membership WHERE vault_id=${vaultId} AND status IN ('active','pending_key'))>1`,
-			)),
-		]);
+	async ensureVaultEnrollment(vaultId: string, userId: string) {
+		// Access is inherited from the organization for every current and future vault.
+		// Persist only key setup and revocation versions; never reactivate an old key.
+		await this.db.insert(s.vaultMembership).select(sql`
+			SELECT v.id, m.user_id, 1, 0, 'pending_key', ${Date.now()}, NULL
+			FROM vault v JOIN member m ON m.organization_id=v.organization_id
+			WHERE v.id=${vaultId} AND v.deleted_at IS NULL AND m.user_id=${userId}
+		`).onConflictDoUpdate({
+			target: [s.vaultMembership.vaultId, s.vaultMembership.userId],
+			set: { status: "pending_key", revokedAt: null, accessVersion: sql`${s.vaultMembership.accessVersion}+1` },
+			setWhere: eq(s.vaultMembership.status, "revoked"),
+		});
 	}
 	async changeOrganizationRole(
 		organizationId: string,
 		userId: string,
 		role: string,
 	) {
-		const update = this.db.update(s.member).set({ role }).where(and(
+		// Demotion removes management authority, while membership still grants vault access.
+		await this.db.update(s.member).set({ role }).where(and(
 			eq(s.member.organizationId, organizationId), eq(s.member.userId, userId), ne(s.member.role, "owner")));
-		// Evaluate inherited grants inside the same transaction as demotion so a
-		// concurrent key-enrollment request cannot escape revocation.
-		const inherited = sql`(select v.id from vault v join vault_membership g on g.vault_id=v.id
-			join member m on m.organization_id=v.organization_id and m.user_id=g.user_id
-			where v.organization_id=${organizationId} and g.user_id=${userId} and g.explicit_access=0 and m.role='member')`;
-		await this.db.batch([update, ...(role === "member" ? this.revocationStatements(inherited, userId) : [])]);
 	}
 
-	async revoke(vaultIds: string[], userId: string, organizationId?: string) {
-		if (!vaultIds.length) {
-			if (organizationId)
-				await this.db
-					.delete(s.member)
-					.where(
-						and(
-							eq(s.member.organizationId, organizationId),
-							eq(s.member.userId, userId),
-						),
-					);
-			return;
-		}
-		const statements = this.revocationStatements(vaultIds, userId, organizationId);
-		await this.db.batch([statements[0]!, ...statements.slice(1)]);
-	}
-	private revocationStatements(vaultIds: string[] | SQL, userId: string, organizationId?: string) {
-		if (Array.isArray(vaultIds) && !vaultIds.length) return [];
+	async removeOrganizationMember(organizationId: string, userId: string) {
+		// Resolve the organization's vaults inside the transaction so enrollment in a
+		// concurrently created vault cannot escape removal. Keep version tombstones.
+		const vaultIds = sql`(select id from vault where organization_id=${organizationId})`;
 		const now = Date.now();
-		return [
-			this.db
-				.update(s.vaultMembership)
-				.set({
-					status: "revoked",
-					revokedAt: new Date(now),
-					accessVersion: sql`${s.vaultMembership.accessVersion}+1`,
-				})
-				.where(
-					and(
-						inArray(s.vaultMembership.vaultId, vaultIds),
-						eq(s.vaultMembership.userId, userId),
-						ne(s.vaultMembership.status, "revoked"),
-					),
-				),
-			this.db
-				.update(s.vaultKeyWrapper)
-				.set({ revokedAt: new Date(now) })
-				.where(
-					and(
-						inArray(s.vaultKeyWrapper.vaultId, vaultIds),
-						eq(s.vaultKeyWrapper.userId, userId),
-					),
-				),
-			this.db
-				.update(s.vaultKeyRequest)
-				.set({ status: "canceled", envelopeJson: null })
-				.where(
-					and(
-						inArray(s.vaultKeyRequest.vaultId, vaultIds),
-						eq(s.vaultKeyRequest.userId, userId),
-					),
-				),
+		await this.db.batch([
+			this.db.update(s.vaultMembership)
+				.set({ status: "revoked", revokedAt: new Date(now), accessVersion: sql`${s.vaultMembership.accessVersion}+1` })
+				.where(and(inArray(s.vaultMembership.vaultId, vaultIds), eq(s.vaultMembership.userId, userId), ne(s.vaultMembership.status, "revoked"))),
+			this.db.update(s.vaultKeyWrapper).set({ revokedAt: new Date(now) })
+				.where(and(inArray(s.vaultKeyWrapper.vaultId, vaultIds), eq(s.vaultKeyWrapper.userId, userId))),
+			this.db.update(s.vaultKeyRequest).set({ status: "canceled", envelopeJson: null })
+				.where(and(inArray(s.vaultKeyRequest.vaultId, vaultIds), eq(s.vaultKeyRequest.userId, userId))),
 			this.db.insert(s.sharingRefresh).select(
 				this.db.select({ vaultId: s.vault.id, revision: sql<string>`${crypto.randomUUID()}`.as("revision"), createdAt: sql<number>`${now}`.as("createdAt") })
 					.from(s.vault).where(inArray(s.vault.id, vaultIds)),
 			).onConflictDoUpdate({ target: s.sharingRefresh.vaultId, set: { revision: crypto.randomUUID(), createdAt: now } }),
-			...(organizationId
-				? [
-						this.db
-							.delete(s.member)
-							.where(
-								and(
-									eq(s.member.organizationId, organizationId),
-									eq(s.member.userId, userId),
-								),
-							),
-					]
-				: []),
-		];
+			this.db.delete(s.member).where(and(eq(s.member.organizationId, organizationId), eq(s.member.userId, userId))),
+		]);
 	}
+
 	async refreshes() {
 		return this.db.select().from(s.sharingRefresh).limit(100);
 	}

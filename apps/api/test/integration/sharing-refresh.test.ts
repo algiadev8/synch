@@ -35,7 +35,7 @@ describe("scheduled sharing refresh", () => {
 		const log = vi.spyOn(console, "error").mockImplementation(() => {});
 		try {
 			const store = new DrizzleSharingStore(db);
-			await store.revoke([owner.vaultId], member.userId);
+			await store.removeOrganizationMember(owner.organizationId, member.userId);
 			const tasks = await store.refreshes();
 			expect(tasks).toHaveLength(1);
 			// No purge binding: frequent retries must not invoke vault retention.

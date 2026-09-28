@@ -48,7 +48,6 @@ export const vaultMembership = sqliteTable(
 		// Creation provenance preserves the existing local-vault connection flow.
 		// It never grants management authority.
 		isCreator: integer("is_creator", { mode: "boolean" }).notNull().default(false),
-		explicitAccess: integer("explicit_access", { mode: "boolean" }).notNull().default(true),
 		status: text("status").notNull(),
 		joinedAt: integer("joined_at", { mode: "timestamp_ms" })
 			.default(sqliteEpochMsNow)

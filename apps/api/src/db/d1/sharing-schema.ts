@@ -1,26 +1,11 @@
 import {
 	index,
 	integer,
-	primaryKey,
 	sqliteTable,
 	text,
 } from "drizzle-orm/sqlite-core";
-import { invitation, organization, user } from "./auth-schema";
+import { organization, user } from "./auth-schema";
 import { vault } from "./vault-schema";
-
-// Invitation state remains in Better Auth's table; this is Synch's vault scope.
-export const invitationVault = sqliteTable(
-	"invitation_vault",
-	{
-		invitationId: text("invitation_id")
-			.notNull()
-			.references(() => invitation.id, { onDelete: "cascade" }),
-		vaultId: text("vault_id")
-			.notNull()
-			.references(() => vault.id, { onDelete: "cascade" }),
-	},
-	(t) => [primaryKey({ columns: [t.invitationId, t.vaultId] })],
-);
 
 export const vaultKeyRequest = sqliteTable(
 	"vault_key_request",

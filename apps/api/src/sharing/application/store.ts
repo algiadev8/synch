@@ -1,4 +1,4 @@
-import type { VaultGrant, KeyRequest, PasswordEnvelope } from "./types";
+import type { KeyRequest, PasswordEnvelope } from "./types";
 
 export type SharingVault = {
 	id: string;
@@ -10,7 +10,6 @@ export type SharingVault = {
 export type SharingMembership = {
 	userId: string;
 	isCreator: boolean;
-	explicitAccess: boolean;
 	status: string;
 	accessVersion: number;
 };
@@ -45,7 +44,6 @@ export type CreateInvitation = {
 	email: string;
 	role: string;
 	inviterId: string;
-	grants: VaultGrant[];
 	memberLimit: number;
 };
 
@@ -79,28 +77,19 @@ export interface SharingStore {
 	>;
 	invitations(organizationId: string): Promise<InvitationRecord[]>;
 	invitation(id: string): Promise<InvitationRecord | null>;
-	invitationGrants(
-		id: string,
-	): Promise<{ vaultId: string; name: string }[]>;
 	createInvitation(input: CreateInvitation): Promise<InvitationRecord | null>;
 	setInvitationStatus(id: string, status: string): Promise<void>;
 	acceptInvitation(
 		invite: InvitationRecord,
 		userId: string,
-		grants: VaultGrant[],
 	): Promise<boolean>;
-	addGrant(vaultId: string, userId: string): Promise<void>;
-	ensureManagerGrant(vaultId: string, userId: string): Promise<void>;
+	ensureVaultEnrollment(vaultId: string, userId: string): Promise<void>;
 	changeOrganizationRole(
 		organizationId: string,
 		userId: string,
 		role: string,
 	): Promise<void>;
-	revoke(
-		vaultIds: string[],
-		userId: string,
-		organizationId?: string,
-	): Promise<void>;
+	removeOrganizationMember(organizationId: string, userId: string): Promise<void>;
 	keyRequests(vaultId: string): Promise<KeyRequest[]>;
 	keyRequest(id: string): Promise<KeyRequest | null>;
 	createKeyRequest(request: KeyRequest): Promise<void>;

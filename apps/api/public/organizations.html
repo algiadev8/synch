@@ -28,16 +28,12 @@ const { t, ready: translationsReady } = createTranslator("organizations", {
 				role: "Role",
 				email: "Email address",
 				invite: "Invite member",
-				inviteHelp: "Choose the vaults this member can access and edit. Owners and administrators can access and manage all vaults. Pending invitations reserve member seats.",
-				selectVault: "Select at least one vault.",
 				sent: "Invitation email sent.",
 				copyLink: "Copy this invitation link and share it with the invited person. They must sign in with the invited email address.",
 				inviteLink: "Invitation link",
 				invitations: "Invitations",
 				members: "Members",
 				remove: "Remove member",
-				revoke: "Revoke access",
-				grant: "Grant access",
 				leave: "Leave organization",
 				removeConfirm: "Stop this person’s sync access? Files already downloaded to their devices remain there.",
 				pendingRefresh: "Access is revoked. Existing connections are being closed; refresh to check again.",
@@ -61,10 +57,10 @@ const { t, ready: translationsReady } = createTranslator("organizations", {
 				signIn: "Please sign in.",
 				loaded: "Organization loaded.",
 				noOrganizations: "No organizations found.",
-				noVaults: "No vaults available. Create a vault from Remote vaults, or ask an administrator for access.",
+				noVaults: "No vaults available. Create a vault from Remote vaults.",
 				sharingRequired: "Organization sharing is available with Plus or on self-hosted servers.",
 				suspended: "Shared sync is paused. Data is preserved and access resumes when Plus is renewed.",
-				keyHelp: "In Obsidian, open Synch → Vault sharing and passwords to request or approve access and set your personal vault password. Retained history is shared too.",
+				keyHelp: "Complete key setup in Obsidian.",
 				plusLimits: "Plus: 3 members including the owner · 3 vaults · 2 GB per vault · 100 MB per file · 1 year of history",
 				cancel: "Cancel invitation",
 				resend: "Resend",
@@ -75,7 +71,6 @@ const { t, ready: translationsReady } = createTranslator("organizations", {
 const $ = selector => document.querySelector(selector);
 let currentUser, organization, organizations = [], busy = false;
 const params = new URLSearchParams(location.search);
-const isManager = role => role === 'owner' || role === 'admin';
 const localUrl = (path, values = {}) => { const url = new URL(path, location.origin); url.searchParams.set('lang', locale); for (const [key, value] of Object.entries(values)) url.searchParams.set(key, value); return url.toString(); };
 function el(tag, text, className) { const node = document.createElement(tag); if (text) node.textContent = text; if (className) node.className = className; return node; }
 function button(label, action, danger = false) { const node = el('button', label, `btn btn--compact ${danger ? 'btn--danger' : 'btn--secondary'}`); node.type = 'button'; node.addEventListener('click', () => void perform(action)); return node; }
@@ -113,7 +108,7 @@ async function loadOrganization() {
   const url = new URL(location.href); url.searchParams.set('organizationId', id); history.replaceState(null, '', url);
   $('#vaults-link').href = localUrl('/vaults', { organizationId: id });
   const detail = $('#detail'); detail.replaceChildren();
-  const manager = isManager(organization.role);
+  const manager = window.synchOrganizationUI.canManage(organization);
   const selectedOption = $('#organization').selectedOptions[0];
   if (selectedOption) selectedOption.textContent = organization.name;
   const summary = el('section', '', 'org-panel org-summary');
@@ -151,17 +146,17 @@ function renderInvitations(parent) {
   if (organization.sharing.enabled) {
     const form = el('form', '', 'org-form'); const email = el('input', '', 'input'); email.type = 'email'; email.autocomplete = 'email'; email.placeholder = 'name@example.com'; email.required = true;
     const role = select(t('organizationRole'), [['member', t('member')], ...(organization.role === 'owner' ? [['admin', t('admin')]] : [])]);
-    form.append(field(t('email'), email), field(t('organizationRole'), role), el('p', t('inviteHelp'), 'vault-meta'));
-    const selections = [];
-    const vaultChoices = el('div', '', 'org-form');
-    for (const vault of organization.vaults) {
-      const input = el('input'); input.type = 'checkbox';
-      selections.push([vault.id, input]); vaultChoices.append(field(vault.name, input));
-    }
+    form.append(field(t('email'), email), field(t('organizationRole'), role));
     const submit = el('button', t('invite'), 'btn btn--primary'); submit.type = 'submit';
-    const updateChoices = () => { vaultChoices.classList.toggle('hidden', role.value === 'admin'); const disabled = role.value === 'member' && !selections.length; submit.disabled = disabled; submit.dataset.disabled = String(disabled); };
-    role.addEventListener('change', updateChoices); updateChoices();
-    form.append(vaultChoices, submit); form.addEventListener('submit', event => { event.preventDefault(); const input = { email: email.value, role: role.value, vaults: role.value === 'admin' ? [] : selections.filter(([, node]) => node.checked).map(([vaultId]) => ({ vaultId })) }; if (input.role === 'member' && !input.vaults.length) { setStatus(t('selectVault')); return; } void perform(async () => { const result = await api(orgPath('/invitations'), 'POST', input); showInviteLink(result.url); return result.emailSent ? t('sent') : t('copyLink'); }); }); const disclosure = el('details', '', 'org-invite-disclosure'); disclosure.append(el('summary', t('invite')), form); section.append(disclosure);
+    form.append(submit);
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      void perform(async () => {
+        const result = await api(orgPath('/invitations'), 'POST', { email: email.value, role: role.value });
+        showInviteLink(result.url); return result.emailSent ? t('sent') : t('copyLink');
+      });
+    });
+    const disclosure = el('details', '', 'org-invite-disclosure'); disclosure.append(el('summary', t('invite')), form); section.append(disclosure);
   }
   const pendingInvitations = organization.invitations.filter(invitation => invitation.status === 'pending');
   if (pendingInvitations.length) section.append(el('h3', t('invitations'), 'org-list-title'));
@@ -177,17 +172,9 @@ function showInviteLink(url) { const box = $('#invite-result'); box.replaceChild
 function renderVault(parent, vault) {
   const section = el('section', '', 'org-panel org-vault'); section.append(el('h3', vault.name, 'org-heading'), el('p', `${t('yourAccess')}: ${vault.status ? t(vault.status) : t('noAccess')}`, 'vault-meta'));
   if (vault.shared && !organization.sharing.enabled) section.append(el('p', t('suspended'), 'org-warning'));
-  const manage = vault.canManage;
-  for (const member of vault.members.filter(member => member.status !== 'revoked')) {
+  for (const member of vault.members) {
     const row = el('div', '', 'org-row'); row.append(el('div', `${member.email} · ${t(member.status)}`, 'org-person'));
-    const path = `/v1/vaults/${encodeURIComponent(vault.id)}/members/${encodeURIComponent(member.userId)}`;
-    if (manage && !member.canManage) row.append(button(t('revoke'), async () => { if (!confirm(t('removeConfirm'))) return; const result = await api(path, 'DELETE'); return result.pending ? t('pendingRefresh') : t('saved'); }, true));
     section.append(row);
-  }
-  const available = organization.members.filter(member => !isManager(member.role) && !vault.members.some(grant => grant.userId === member.id && grant.status !== 'revoked'));
-  if (manage && organization.sharing.enabled && available.length) {
-    const row = el('div', '', 'org-inline'); const member = select(t('members'), available.map(member => [member.id, member.email]));
-    row.append(member, button(t('grant'), () => api(`/v1/vaults/${encodeURIComponent(vault.id)}/grants`, 'POST', { userId: member.value }))); section.append(row);
   }
   parent.append(section);
 }

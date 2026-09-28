@@ -95,7 +95,7 @@ export function registerSharingRoutes(
 					role: role.default("member"),
 					vaults: z
 						.array(z.object({ vaultId: id }).strict())
-						.max(100).default([]),
+						.max(0, "All organization vaults are included; remove the vault selection").optional(),
 				})
 				.strict(),
 		),
@@ -164,37 +164,17 @@ export function registerSharingRoutes(
 			),
 		),
 	);
-	api.post("/vaults/:vaultId/members", (c) =>
-		c.json(
-			{
-				error: "use_vault_grants",
-				message: "Use vault grants and key requests to share a vault",
-			},
-			410,
-		),
-	);
-	api.post(
-		"/vaults/:vaultId/grants",
-		zValidator("json", z.object({ userId: z.string().min(1) }).strict()),
-		async (c) =>
-			c.json(
-				await service.changeVaultMember(
-					c.var.user.id,
-					c.req.param("vaultId"),
-					c.req.valid("json").userId,
-					true,
-				),
-			),
-	);
-	api.delete("/vaults/:vaultId/members/:userId", async (c) =>
-		c.json(
-			await service.changeVaultMember(
-				c.var.user.id,
-				c.req.param("vaultId"),
-				c.req.param("userId"),
-			),
-		),
-	);
+	// Keep old clients from treating removed per-vault controls as successful writes.
+	for (const path of ["/vaults/:vaultId/members", "/vaults/:vaultId/grants"]) {
+		api.post(path, (c) => c.json({
+			error: "organization_access_inherited",
+			message: "All organization members have vault access. Manage organization membership instead.",
+		}, 410));
+	}
+	api.delete("/vaults/:vaultId/members/:userId", (c) => c.json({
+		error: "organization_access_inherited",
+		message: "Vault access is inherited. Remove the member from the organization to revoke access.",
+	}, 410));
 	api.get("/vaults/:vaultId/key-requests", async (c) =>
 		c.json({
 			requests: await service.listKeyRequests(

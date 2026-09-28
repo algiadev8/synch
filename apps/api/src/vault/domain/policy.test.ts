@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
 	canAccessVault,
-	canGrantVaultAccess,
 	canManageVault,
 	type VaultAuthorizationFacts,
 } from "./policy";
@@ -14,13 +13,12 @@ const activeMember: VaultAuthorizationFacts = {
 };
 
 describe("vault authorization policy", () => {
-	it("allows an active organization member with a vault grant to access", () => {
+	it("allows an active organization member with completed key enrollment to access", () => {
 		expect(canAccessVault(activeMember)).toBe(true);
 		expect(canManageVault(activeMember)).toBe(false);
-		expect(canGrantVaultAccess(activeMember)).toBe(false);
 	});
 
-	it("allows organization owners and admins to manage and grant access", () => {
+	it("allows organization owners and admins to manage before key enrollment", () => {
 		for (const role of ["owner", "admin"]) {
 			const facts = {
 				...activeMember,
@@ -29,11 +27,10 @@ describe("vault authorization policy", () => {
 			} satisfies VaultAuthorizationFacts;
 
 			expect(canManageVault(facts)).toBe(true);
-			expect(canGrantVaultAccess(facts)).toBe(true);
 		}
 	});
 
-	it("allows an organization owner to grant access without a vault grant", () => {
+	it("allows an organization owner to manage without key enrollment", () => {
 		const facts = {
 			...activeMember,
 			vaultMembership: null,
@@ -42,7 +39,6 @@ describe("vault authorization policy", () => {
 
 		expect(canAccessVault(facts)).toBe(false);
 		expect(canManageVault(facts)).toBe(true);
-		expect(canGrantVaultAccess(facts)).toBe(true);
 	});
 
 	it("denies access and management for a deleted vault", () => {
@@ -55,6 +51,5 @@ describe("vault authorization policy", () => {
 
 		expect(canAccessVault(facts)).toBe(false);
 		expect(canManageVault(facts)).toBe(false);
-		expect(canGrantVaultAccess(facts)).toBe(false);
 	});
 });

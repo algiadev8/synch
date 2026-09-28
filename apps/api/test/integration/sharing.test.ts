@@ -55,13 +55,13 @@ const mutation = (cookie: string, body?: unknown, method = "POST") => ({
 });
 
 describe("Plus organization sharing on Cloudflare", () => {
-	it("uses organization roles for all vault management and revokes inherited access on demotion", async () => {
+	it("uses organization roles for all vault management and preserves content access on demotion", async () => {
 		const owner = await signUpAndCreateVault();
 		const admin = await signUpAccount();
 		await plus(owner.organizationId);
 		await env.DB.prepare("UPDATE user SET email_verified=1 WHERE id=?").bind(admin.userId).run();
 		const invite = await jsonRequest<{ id: string }>(`/v1/organizations/${owner.organizationId}/invitations`, mutation(owner.sessionCookie, {
-			email: admin.email, role: "admin", vaults: [],
+			email: admin.email, role: "admin",
 		}));
 		expect(invite.response.status).toBe(201);
 		expect((await jsonRequest(`/v1/invitations/${invite.json!.id}/accept`, mutation(admin.sessionCookie))).response.status).toBe(200);
@@ -84,8 +84,8 @@ describe("Plus organization sharing on Cloudflare", () => {
 		}))).response.status).toBe(200);
 		const token = await issueSyncToken(admin.sessionCookie, owner.vaultId, "admin-device");
 		expect((await jsonRequest(`/v1/organizations/${owner.organizationId}/members/${admin.userId}`, mutation(owner.sessionCookie, { role: "member" }, "PATCH"))).response.status).toBe(200);
-		expect((await jsonRequest(`/v1/vaults/${owner.vaultId}/bootstrap`, { headers: { cookie: admin.sessionCookie } })).response.status).toBe(403);
-		expect((await apiRequest(`/v1/vaults/${owner.vaultId}/blobs/denied`, { headers: { authorization: `Bearer ${token.token}` } })).status).toBe(403);
+		expect((await jsonRequest(`/v1/vaults/${owner.vaultId}/bootstrap`, { headers: { cookie: admin.sessionCookie } })).response.status).toBe(200);
+		expect((await apiRequest(`/v1/vaults/${owner.vaultId}/blobs/denied`, { headers: { authorization: `Bearer ${token.token}` } })).status).toBe(404);
 		expect((await jsonRequest(`/v1/vaults/${owner.vaultId}`, mutation(admin.sessionCookie, undefined, "DELETE"))).response.status).toBe(403);
 	});
 
@@ -99,7 +99,6 @@ describe("Plus organization sharing on Cloudflare", () => {
 		const input = {
 			email: member.email,
 			role: "member",
-			vaults: [{ vaultId: owner.vaultId }],
 		};
 		expect(
 			(await jsonRequest(invites, mutation(owner.sessionCookie, input)))
@@ -118,6 +117,10 @@ describe("Plus organization sharing on Cloudflare", () => {
 			).status,
 		).toBe(403);
 		await plus(owner.organizationId);
+		// A stale invitation form must not silently broaden a selected-vault invite.
+		expect((await jsonRequest(invites, mutation(owner.sessionCookie, {
+			...input, vaults: [{ vaultId: owner.vaultId }],
+		}))).response.status).toBe(400);
 		expect((await jsonRequest(invites, mutation(owner.sessionCookie, {
 			...input, vaults: [{ vaultId: owner.vaultId, role: "admin" }],
 		}))).response.status).toBe(400);
@@ -245,13 +248,19 @@ describe("Plus organization sharing on Cloudflare", () => {
 			method: "PUT", headers: { authorization: `Bearer ${issued.token}`, "x-blob-size": "17" }, body: "member ciphertext",
 		})).status).toBe(201);
 		expect((await jsonRequest(`/v1/vaults/${owner.vaultId}`, mutation(member.sessionCookie, undefined, "DELETE"))).response.status).toBe(403);
+		for (const path of ["grants", "members"]) {
+			expect((await jsonRequest(`/v1/vaults/${owner.vaultId}/${path}`, mutation(owner.sessionCookie, { userId: member.userId }))).response.status).toBe(410);
+		}
+		expect((await jsonRequest(`/v1/vaults/${owner.vaultId}/members/${member.userId}`, mutation(owner.sessionCookie, undefined, "DELETE"))).response.status).toBe(410);
+		expect((await jsonRequest(`/v1/vaults/${owner.vaultId}/bootstrap`, { headers: { cookie: member.sessionCookie } })).response.status).toBe(200);
+		expect((await jsonRequest("/v1/vaults", mutation(member.sessionCookie, { name: "Member cannot create", organizationId: owner.organizationId, initialWrapper: DEFAULT_VAULT_WRAPPER }))).response.status).toBe(403);
 		const closed = new Promise<number>((resolve) =>
 			socket.addEventListener("close", (event) => resolve(event.code)),
 		);
 		expect(
 			(
 				await jsonRequest(
-					`/v1/vaults/${owner.vaultId}/members/${member.userId}`,
+					`/v1/organizations/${owner.organizationId}/members/${member.userId}`,
 					mutation(owner.sessionCookie, undefined, "DELETE"),
 				)
 			).response.status,
@@ -299,10 +308,10 @@ describe("Plus organization sharing on Cloudflare", () => {
 			).response.status,
 		).toBe(403);
 
-		// Regranting access must require fresh key approval and a fresh token.
-		expect((await jsonRequest(`/v1/vaults/${owner.vaultId}/grants`, mutation(owner.sessionCookie, {
-			userId: member.userId,
-		}))).response.status).toBe(200);
+		// Rejoining requires a new invitation, fresh key approval and a fresh token.
+		const reinvited = await jsonRequest<{ id: string }>(invites, mutation(owner.sessionCookie, input));
+		expect(reinvited.response.status).toBe(201);
+		expect((await jsonRequest(`/v1/invitations/${reinvited.json!.id}/accept`, mutation(member.sessionCookie))).response.status).toBe(200);
 		const renewedRequestId = crypto.randomUUID();
 		expect((await jsonRequest(path, mutation(member.sessionCookie, {
 			id: renewedRequestId, publicKey: await receiverKey(),

@@ -52,7 +52,6 @@ export class SharingModal extends Modal {
     if (this.closed) return;
     this.contentEl.empty();
     this.contentEl.createEl("h2", { text: t("sharing.title") });
-    this.contentEl.createEl("p", { text: t("sharing.summary"), cls: "synch-sharing-hint" });
     const body = this.contentEl.createDiv();
     body.setAttribute("aria-live", "polite");
     const loading = body.createEl("p", { text: t("sharing.loading"), cls: "synch-sharing-hint" });
@@ -141,7 +140,6 @@ export class SharingModal extends Modal {
       const empty = access.createDiv({ cls: "synch-sharing-empty" });
       setIcon(empty.createSpan(), "users");
       empty.createEl("p", { text: t("sharing.noRequests") });
-      empty.createEl("p", { text: t("sharing.noRequestsHint"), cls: "synch-sharing-hint" });
     }
   }
   private approvalForm(

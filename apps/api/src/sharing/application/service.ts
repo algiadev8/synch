@@ -1,3 +1,4 @@
+import { vaultEnrollmentStatus } from "../../vault/domain/policy";
 import type { EmailSender } from "../../auth/better-auth";
 import type { SubscriptionPolicyReader } from "../../subscription/application";
 import { organizationSharingPolicy } from "../../subscription/domain/policy";
@@ -7,7 +8,6 @@ export type { SharingInvalidator } from "./refresh";
 import {
 	SharingError,
 	type SharingActor,
-	type VaultGrant,
 	type TransferEnvelope,
 	type PasswordEnvelope,
 	type KeyRequest,
@@ -57,24 +57,14 @@ export class SharingService {
 		if (!vault) throw new SharingError(404, "not_found", "Vault not found");
 		const member = await this.requireOrganization(userId, vault.organizationId, manage);
 		const storedGrant = await this.store.grant(vaultId, userId);
-		const grant = isManager(member.role) && (!storedGrant || storedGrant.status === "revoked")
-			? { userId, isCreator: storedGrant?.isCreator ?? false, explicitAccess: false, status: "pending_key", accessVersion: storedGrant?.accessVersion ?? 0 }
-			: storedGrant;
-		if (
-			!grant ||
-			!(
-				grant.status === "active" ||
-				(pending && grant.status === "pending_key")
-			)
-		)
-			forbidden();
-		return { vault, grant: grant!, member };
-	}
-	private async requireVaultManagement(userId: string, vaultId: string) {
-		const vault = await this.store.vault(vaultId);
-		if (!vault) throw new SharingError(404, "not_found", "Vault not found");
-		await this.requireOrganization(userId, vault.organizationId, true);
-		return vault;
+		const grant = {
+			userId,
+			isCreator: storedGrant?.isCreator ?? false,
+			status: vaultEnrollmentStatus(storedGrant),
+			accessVersion: storedGrant?.accessVersion ?? 0,
+		};
+		if (grant.status !== "active" && !(pending && grant.status === "pending_key")) forbidden();
+		return { vault, grant, member };
 	}
 	async requireSharing(organizationId: string) {
 		const plan = await this.policy.readOrganizationPolicy(organizationId);
@@ -99,8 +89,7 @@ export class SharingService {
 		const visibleVaults = [];
 		for (const vault of vaults) {
 			const grant = await this.store.grant(vault.id, userId);
-			if (!manage && (!grant || grant.status === "revoked")) continue;
-			const status = manage && (!grant || grant.status === "revoked") ? "pending_key" : grant?.status ?? null;
+			const status = vaultEnrollmentStatus(grant);
 			const grants = manage ? await this.store.grants(vault.id) : [];
 			visibleVaults.push({
 				id: vault.id,
@@ -109,12 +98,11 @@ export class SharingService {
 				personal: grant?.isCreator === true,
 				canManage: manage,
 				status,
-				members: manage ? members.flatMap((member) => {
+				members: manage ? members.map((member) => {
 					const grant = grants.find((grant) => grant.userId === member.id);
-					if (!isManager(member.role) && !grant) return [];
-					return [{ userId: member.id, name: member.name, email: member.email,
+					return { userId: member.id, name: member.name, email: member.email,
 						canManage: isManager(member.role),
-						status: isManager(member.role) && (!grant || grant.status === "revoked") ? "pending_key" : grant!.status }];
+						status: vaultEnrollmentStatus(grant) };
 				}) : [],
 			});
 		}
@@ -144,7 +132,7 @@ export class SharingService {
 	async invite(
 		actor: SharingActor,
 		organizationId: string,
-		input: { email: string; role: "admin" | "member"; vaults: VaultGrant[] },
+		input: { email: string; role: "admin" | "member" },
 	) {
 		const inviter = await this.requireOrganization(
 			actor.id,
@@ -164,21 +152,11 @@ export class SharingService {
 				"email_not_allowed",
 				"This server's account allowlist does not include that email",
 			);
-		if (
-			(input.role === "member" && !input.vaults.length) ||
-			new Set(input.vaults.map((v) => v.vaultId)).size !== input.vaults.length
-		)
-			throw new SharingError(400, "invalid_vaults", "Select each vault once");
-		for (const item of input.vaults) {
-			const vault = await this.requireVaultManagement(actor.id, item.vaultId);
-			if (vault.organizationId !== organizationId) forbidden();
-		}
 		const invitation = await this.store.createInvitation({
 			organizationId,
 			email,
 			role: input.role,
 			inviterId: actor.id,
-			grants: input.role === "admin" ? [] : input.vaults,
 			memberLimit: policy.memberLimit,
 		});
 		if (!invitation)
@@ -231,13 +209,6 @@ export class SharingService {
 				"invitation_unavailable",
 				"Create a new invitation for expired or canceled invitations",
 			);
-		const last = await this.store.invitationGrants(id);
-		if (invite.role !== "admin" && !last.length)
-			throw new SharingError(
-				409,
-				"invitation_incomplete",
-				"Cancel this invitation and create it again",
-			);
 		return this.deliverInvitation(id, invite.email);
 	}
 	async cancel(userId: string, organizationId: string, id: string) {
@@ -272,9 +243,7 @@ export class SharingService {
 				invite.expiresAt.getTime() <= Date.now() && invite.status === "pending"
 					? "expired"
 					: invite.status,
-			vaults: invite.role === "admin"
-				? (await this.store.vaults(invite.organizationId)).map((vault) => ({ vaultId: vault.id, name: vault.name }))
-				: await this.store.invitationGrants(id),
+			vaults: (await this.store.vaults(invite.organizationId)).map((vault) => ({ vaultId: vault.id, name: vault.name })),
 		};
 	}
 	async respond(actor: SharingActor, id: string, accept: boolean) {
@@ -298,22 +267,10 @@ export class SharingService {
 			true,
 		);
 		if (invite.role === "admin" && inviter.role !== "owner") forbidden();
-		const grants = invite.role === "admin" ? [] : await this.store.invitationGrants(id);
-		if (invite.role !== "admin" && !grants.length)
-			throw new SharingError(
-				409,
-				"invitation_incomplete",
-				"The invitation has no vault assignments",
-			);
-		for (const grant of grants) {
-			const vault = await this.requireVaultManagement(invite.inviterId, grant.vaultId);
-			if (vault.organizationId !== invite.organizationId) forbidden();
-		}
 		if (
 			!(await this.store.acceptInvitation(
 				invite,
 				actor.id,
-				grants as VaultGrant[],
 			))
 		)
 			throw new SharingError(
@@ -321,7 +278,7 @@ export class SharingService {
 				"invitation_changed",
 				"Invitation changed; refresh and try again",
 			);
-		for (const grant of grants) await this.refresh(grant.vaultId);
+		await this.flushRefreshes();
 		await this.store.audit(
 			invite.organizationId,
 			actor.id,
@@ -358,12 +315,7 @@ export class SharingService {
 					(target!.role === "admin" && actor.role !== "owner"))
 			)
 				forbidden();
-			const vaults = await this.store.vaults(organizationId);
-			await this.store.revoke(
-				vaults.map((v) => v.id),
-				targetId,
-				organizationId,
-			);
+			await this.store.removeOrganizationMember(organizationId, targetId);
 		}
 		await this.store.audit(
 			organizationId,
@@ -371,19 +323,6 @@ export class SharingService {
 			role ? "member_role_changed" : "member_removed",
 			targetId,
 		);
-		return { pending: !(await this.flushRefreshes()) };
-	}
-	async changeVaultMember(userId: string, vaultId: string, targetId: string, add = false) {
-		const vault = await this.requireVaultManagement(userId, vaultId);
-		const target = await this.requireOrganization(targetId, vault.organizationId);
-		// Managers inherit access to every vault; individual grants cannot override it.
-		if (isManager(target.role)) forbidden();
-		if (add) {
-			await this.requireSharing(vault.organizationId);
-			await this.store.addGrant(vaultId, targetId);
-			await this.store.queueRefresh(vaultId);
-		} else await this.store.revoke([vaultId], targetId);
-		await this.store.audit(vault.organizationId, userId, add ? "vault_grant_added" : "vault_grant_revoked", targetId);
 		return { pending: !(await this.flushRefreshes()) };
 	}
 	async listKeyRequests(userId: string, vaultId: string) {
@@ -413,7 +352,7 @@ export class SharingService {
 	) {
 		const { vault } = await this.requireVault(userId, vaultId, false, true);
 		await this.requireSharing(vault.organizationId);
-		await this.store.ensureManagerGrant(vaultId, userId);
+		await this.store.ensureVaultEnrollment(vaultId, userId);
 		const { grant } = await this.requireVault(userId, vaultId, false, true);
 		const existing = await this.store.keyRequest(id);
 		if (existing) {

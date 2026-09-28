@@ -11,7 +11,7 @@
  <body>
   <main class="page page--wide">
    <div class="topbar organization-topbar"><a href="https://synch.run/" class="brand">Synch</a><span id="user" class="vault-meta"></span></div>
-   <header class="vaults-header"><div><h1 class="page-title" data-i18n="title">Organization invitation</h1><p class="vaults-subtitle" data-i18n="subtitle">Review the vault access included with your invitation.</p></div></header>
+   <header class="vaults-header"><div><h1 class="page-title" data-i18n="title">Organization invitation</h1></div></header>
 
    <p id="status" class="status status--bar" role="status" aria-live="polite">…</p>
    <div id="detail" class="org-detail"></div>
@@ -33,10 +33,7 @@ const { t, ready: translationsReady } = createTranslator("invitations", {
 				failed: "Unable to complete the request.",
 				signIn: "Please sign in.",
 				title: "Organization invitation",
-				subtitle: "Review the vault access included with your invitation.",
 				missing: "Open the invitation link provided by your administrator.",
-				history: "Accepting gives access to retained vault history after key approval.",
-				keyHelp: "After accepting, open Vault sharing and passwords in the Synch Obsidian plugin on the device you will use. Request administrator approval and set your own vault password.",
 				accept: "Accept invitation",
 				reject: "Reject invitation",
 				next: "Invitation accepted. Continue key setup in Obsidian.",
@@ -77,7 +74,6 @@ async function initialize() {
   const list = el('ul', ''); for (const vault of invitation.vaults) list.append(el('li', vault.name)); content.append(list);
   status.textContent = t(invitation.status);
   if (invitation.status === 'pending') {
-    content.append(el('p', t('history')), el('p', t('keyHelp')));
     const actions = el('div', ''); actions.className = 'org-inline';
     for (const action of ['accept', 'reject']) {
       const button = el('button', t(action)); button.className = `btn ${action === 'accept' ? 'btn--primary' : 'btn--secondary'}`; button.type = 'button';

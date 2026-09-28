@@ -97,17 +97,12 @@ export class DrizzleVaultStore
 				purgeError: schema.vault.purgeError,
 			})
 			.from(schema.vault)
-			.leftJoin(
-				schema.vaultMembership,
-				and(eq(schema.vaultMembership.vaultId, schema.vault.id), eq(schema.vaultMembership.userId, userId)),
-			)
 			.innerJoin(
 				schema.member,
 				eq(schema.member.organizationId, schema.vault.organizationId),
 			)
 			.where(
 				and(
-					or(eq(schema.vaultMembership.status, "active"), sql`${schema.member.role} in ('owner','admin')`),
 					eq(schema.member.userId, userId),
 					deletionFilter,
 				),
@@ -195,7 +190,7 @@ export class DrizzleVaultStore
 			this.db
 				.insert(schema.vault)
 				.select(
-					sql`SELECT ${vaultId}, ${organizationId}, ${name}, null, ${initialWrapper.envelope.keyVersion}, ${now}, null, null, null
+					sql`SELECT ${vaultId}, ${organizationId}, ${name}, CASE WHEN (SELECT count(*) FROM member WHERE organization_id=${organizationId})>1 THEN ${now} ELSE null END, ${initialWrapper.envelope.keyVersion}, ${now}, null, null, null
           WHERE (${maxVaults}=0 OR (SELECT count(*) FROM vault WHERE organization_id=${organizationId} AND deleted_at IS NULL)<${maxVaults})
           AND EXISTS (SELECT 1 FROM member WHERE organization_id=${organizationId} AND user_id=${userId} AND role IN ('owner','admin'))`,
 				)
@@ -208,7 +203,7 @@ export class DrizzleVaultStore
 			this.db
 				.insert(schema.vaultMembership)
 				.select(
-					sql`SELECT ${vaultId}, ${userId}, 1, 1, 0, 'active', ${now}, null FROM vault WHERE id=${vaultId}`,
+					sql`SELECT ${vaultId}, ${userId}, 1, 1, 'active', ${now}, null FROM vault WHERE id=${vaultId}`,
 				),
 		]);
 		if (!rows[0])
