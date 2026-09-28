@@ -36,14 +36,12 @@ export const ko = {
     "sharing.connectFirst": "접근을 승인하려면 먼저 본인의 비밀번호로 이 vault에 연결하세요.",
     "sharing.code": "상대방 확인 코드",
     "sharing.approve": "승인",
-    "sharing.changePassword": "내 vault 비밀번호 변경",
     "sharing.setPassword": "내 vault 비밀번호 설정",
     "sharing.passwordHelp": "본인의 비밀번호만 바뀝니다. 다른 멤버는 각자의 비밀번호를 유지합니다.",
     "sharing.password": "새 비밀번호",
     "sharing.confirmPassword": "비밀번호 확인",
     "sharing.save": "저장",
     "sharing.ready": "비밀번호를 저장했습니다. Vault 연결에서 이 비밀번호를 입력하면 동기화를 시작할 수 있습니다.",
-    "sharing.saved": "내 vault 비밀번호를 변경했습니다.",
     "sharing.accountChanged": "계정 또는 서버가 변경되었습니다. 이 창을 다시 열어주세요.",
 
 

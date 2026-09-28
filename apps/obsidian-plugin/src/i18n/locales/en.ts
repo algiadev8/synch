@@ -36,14 +36,12 @@ export const en = {
     "sharing.connectFirst": "Connect this vault with your own password before approving access.",
     "sharing.code": "Recipient verification code",
     "sharing.approve": "Approve",
-    "sharing.changePassword": "Change my vault password",
     "sharing.setPassword": "Set my vault password",
     "sharing.passwordHelp": "Only your password changes. Other members keep their own passwords.",
     "sharing.password": "New password",
     "sharing.confirmPassword": "Confirm password",
     "sharing.save": "Save",
     "sharing.ready": "Password saved. Use Connect vault with this password to begin syncing.",
-    "sharing.saved": "Your vault password was changed.",
     "sharing.accountChanged": "Your account or server changed. Reopen this window.",
 
 

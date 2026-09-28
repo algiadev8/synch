@@ -100,19 +100,7 @@ export class SharingModal extends Modal {
       this.activeSession()?.summary.vaultId === vault.id
         ? this.activeSession()?.remoteVaultKey
         : undefined;
-    if (key && vault.status === "active")
-      this.passwordForm(
-        section,
-        (password) =>
-          this.manager.changePassword(
-            vault.id,
-            key,
-            password.value,
-            password.confirm,
-          ),
-        "change",
-      );
-    else if (canShare)
+    if (canShare && !(key && vault.status === "active"))
       new Setting(section)
         .setName(
           t(
@@ -167,7 +155,6 @@ export class SharingModal extends Modal {
                   password.value,
                   password.confirm,
                 ),
-              "receive",
             );
           else section.createEl("p", { text: t("sharing.waiting") });
         }
@@ -218,14 +205,11 @@ export class SharingModal extends Modal {
   private passwordForm(
     parent: HTMLElement,
     action: (password: { value: string; confirm: string }) => Promise<void>,
-    mode: "change" | "receive",
   ): void {
     let value = "";
     let confirm = "";
     const setting = new Setting(parent)
-      .setName(
-        t(mode === "change" ? "sharing.changePassword" : "sharing.setPassword"),
-      )
+      .setName(t("sharing.setPassword"))
       .setDesc(t("sharing.passwordHelp"));
     setting.addText((text) => {
       text.inputEl.type = "password";
@@ -247,10 +231,7 @@ export class SharingModal extends Modal {
           await action({ value, confirm });
           value = "";
           confirm = "";
-          new Notice(
-            t(mode === "receive" ? "sharing.ready" : "sharing.saved"),
-            10000,
-          );
+          new Notice(t("sharing.ready"), 10000);
         });
       }),
     );
