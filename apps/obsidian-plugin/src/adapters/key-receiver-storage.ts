@@ -9,13 +9,18 @@ import { getOrCreateSecretScopeId } from "./secret-scope";
 export class ObsidianKeyReceiverStore implements KeyReceiverStore {
   constructor(private readonly plugin: Plugin) {}
   private async name(scope: string): Promise<string> {
+    // Hash the full namespace to preserve isolation within Obsidian's 64-character limit.
+    const namespace = JSON.stringify([
+      "synch-key-request",
+      getOrCreateSecretScopeId(this.plugin),
+      scope,
+    ]);
     const digest = new Uint8Array(
-      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(scope)),
+      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(namespace)),
     );
-    const suffix = Array.from(digest, (byte) =>
+    return Array.from(digest, (byte) =>
       byte.toString(16).padStart(2, "0"),
     ).join("");
-    return `synch-key-request-${getOrCreateSecretScopeId(this.plugin)}-${suffix}`;
   }
   async read(scope: string): Promise<StoredKeyReceiver | null> {
     const name = await this.name(scope);

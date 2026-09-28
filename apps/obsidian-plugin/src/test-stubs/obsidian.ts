@@ -315,7 +315,7 @@ export class App {
   secretStorage = {
     getSecret: (key: string): string | undefined => this.secrets.get(key),
     setSecret: (key: string, value: string): void => {
-      if (!/^[a-z0-9-]+$/.test(key)) {
+      if (!/^[a-z0-9-]{1,64}$/.test(key)) {
         throw new Error("Invalid secret ID");
       }
 
