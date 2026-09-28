@@ -245,6 +245,7 @@ export const de = {
     "sync.state.up_to_date": "aktuell",
     "sync.state.update_required": "Update erforderlich",
     "sync.status": ({ label, percent }: { label: string; percent: number }) => `${label} ${percent}%`,
+    "sync.disconnect": "Trennen",
     "sync.stop": "Synchronisierung stoppen",
     "vault.backupConfirm": "Ich habe ein Backup erstellt, Vault anlegen",
     "vault.backupHeader": "Sichern Sie Ihr Vault",

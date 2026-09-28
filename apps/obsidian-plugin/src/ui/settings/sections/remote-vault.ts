@@ -34,16 +34,14 @@ export function populateVaultManageSetting(
   );
 }
 
-export function populateVaultConnectionSetting(
+export function addVaultDisconnectButton(
   setting: Setting,
   controller: SynchSettingsController,
   refresh: RefreshSettings,
 ): void {
   setting
-    .setName(t("vault.setting"))
-    .setDesc(controller.getRemoteVaultStatusLabel())
     .addButton((button) =>
-      button.setButtonText(t("vault.disconnect")).onClick(async () => {
+      button.setButtonText(t("sync.disconnect")).onClick(async () => {
         await controller.disconnectRemoteVault();
         refresh();
       }),

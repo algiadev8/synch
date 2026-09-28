@@ -224,6 +224,7 @@ export const ko = {
     "sync.state.up_to_date": "최신 상태",
     "sync.state.update_required": "업데이트 필요",
     "sync.status": ({ label, percent }: { label: string; percent: number }) => `${label} ${percent}%`,
+    "sync.disconnect": "연결 해제",
     "sync.stop": "동기화 중지",
     "vault.backupConfirm": "백업했습니다. vault 생성",
     "vault.backupHeader": "Vault 백업",

@@ -85,9 +85,9 @@ describe("SynchSettingTab sync status", () => {
       ?.click();
 
     expect(createRemoteVaultFromPrompt).toHaveBeenCalledTimes(1);
-    expect(getSettingNames()).toContain(t("vault.setting"));
+    expect(getSettingNames()).not.toContain(t("vault.setting"));
     expect(getButtonComponents().map((button) => button.text)).toContain(
-      t("vault.disconnect"),
+      t("sync.disconnect"),
     );
   });
 
@@ -109,9 +109,9 @@ describe("SynchSettingTab sync status", () => {
       ?.click();
 
     expect(connectRemoteVaultFromPrompt).toHaveBeenCalledTimes(1);
-    expect(getSettingNames()).toContain(t("vault.setting"));
+    expect(getSettingNames()).not.toContain(t("vault.setting"));
     expect(getButtonComponents().map((button) => button.text)).toContain(
-      t("vault.disconnect"),
+      t("sync.disconnect"),
     );
   });
 
@@ -259,8 +259,9 @@ describe("SynchSettingTab sync status", () => {
 
     tab.open();
 
-    expect(getButtonComponents()[0]?.text).toBe(t("sync.stop"));
-    await getButtonComponents()[0]?.click();
+    expect(getButtonComponents()[0]?.text).toBe(t("sync.disconnect"));
+    expect(getButtonComponents()[1]?.text).toBe(t("sync.stop"));
+    await getButtonComponents()[1]?.click();
     expect(setSyncEnabled).toHaveBeenCalledWith(false);
     expect(getExtraButtonComponents()).toEqual([]);
   });
@@ -496,11 +497,12 @@ describe("SynchSettingTab sync status", () => {
 
     tab.open();
 
-    expect(getButtonComponents()[0]?.text).toBe(t("sync.start"));
+    expect(getButtonComponents()[0]?.text).toBe(t("sync.disconnect"));
+    expect(getButtonComponents()[1]?.text).toBe(t("sync.start"));
     expect(getSettingDescriptions()[0]).toBe(
       `${t("sync.state.paused")} - 12 / 12`,
     );
-    await getButtonComponents()[0]?.click();
+    await getButtonComponents()[1]?.click();
     expect(setSyncEnabled).toHaveBeenCalledWith(true);
     expect(getExtraButtonComponents()).toEqual([]);
   });

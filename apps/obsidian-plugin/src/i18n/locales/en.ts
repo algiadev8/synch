@@ -240,6 +240,7 @@ export const en = {
     "sync.state.up_to_date": "up to date",
     "sync.state.update_required": "update required",
     "sync.status": ({ label, percent }: { label: string; percent: number }) => `${label} ${percent}%`,
+    "sync.disconnect": "Disconnect",
     "sync.stop": "Stop sync",
     "vault.backupConfirm": "I backed up, create vault",
     "vault.backupHeader": "Back Up Your Vault",

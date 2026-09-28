@@ -229,6 +229,7 @@ export const zhTw = {
     "sync.state.up_to_date": "已是最新",
     "sync.state.update_required": "需要更新",
     "sync.status": ({ label, percent }: { label: string; percent: number }) => `${label} ${percent}%`,
+    "sync.disconnect": "中斷連線",
     "sync.stop": "停止同步",
     "vault.backupConfirm": "我已備份，建立 vault",
     "vault.backupHeader": "備份你的 Vault",

@@ -229,6 +229,7 @@ export const ja = {
     "sync.state.up_to_date": "最新",
     "sync.state.update_required": "更新が必要",
     "sync.status": ({ label, percent }: { label: string; percent: number }) => `${label} ${percent}%`,
+    "sync.disconnect": "接続解除",
     "sync.stop": "同期を停止",
     "vault.backupConfirm": "バックアップ済み、vaultを作成",
     "vault.backupHeader": "Vaultをバックアップ",

@@ -623,7 +623,6 @@ describe("SynchSettingTab", () => {
     expect(names).toEqual(
       expect.arrayContaining([
         t("sync.label"),
-        t("authentication"),
         t("images"),
         t("sync.frequency"),
         t("diagnostics.header"),

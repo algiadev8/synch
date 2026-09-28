@@ -51,7 +51,7 @@ describe("SynchSettingTab remote vault settings", () => {
       disconnectRemoteVault: async () => { connected = false; },
     });
     tab.open();
-    await getLatestButton(t("vault.disconnect"))?.click();
+    await getLatestButton(t("sync.disconnect"))?.click();
     resetObsidianMocks();
     tab.open();
     expect(getButtonComponents().map((button) => button.text)).toEqual([
@@ -59,7 +59,7 @@ describe("SynchSettingTab remote vault settings", () => {
     ]);
   });
 
-  it("shows the vault field only after a vault is connected", () => {
+  it("shows vault management and sync connection controls only after connection", () => {
     const disconnected = createSettingsTab({
       hasAuthenticatedSession: () => true,
       hasConnectedRemoteVault: () => false,
@@ -80,9 +80,9 @@ describe("SynchSettingTab remote vault settings", () => {
     connected.open();
 
     expect(getSettingNames()).toContain(t("vault.manage"));
-    expect(getSettingNames()).toContain(t("vault.setting"));
+    expect(getSettingNames()).not.toContain(t("vault.setting"));
     expect(getButtonComponents().map((button) => button.text)).toContain(
-      t("vault.disconnect"),
+      t("sync.disconnect"),
     );
   });
 

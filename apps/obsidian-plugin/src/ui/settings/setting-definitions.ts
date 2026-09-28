@@ -25,7 +25,7 @@ import {
   populateSyncPausedSetting,
   populateSyncStatusSetting,
   populateVaultConnectSetting,
-  populateVaultConnectionSetting,
+  addVaultDisconnectButton,
   populateVaultManageSetting,
   type ApiBaseUrlSettingOptions,
 } from "./sections";
@@ -167,8 +167,12 @@ export function buildSynchSettingDefinitions(
     const compatibilityMessage = serverCompatibility.message;
     definitions.push({
       name: t("sync.paused"),
+      aliases: hasConnectedRemoteVault ? [t("sync.disconnect"), t("vault.disconnect")] : [],
       render: (setting) => {
         populateSyncPausedSetting(setting, compatibilityMessage);
+        if (hasConnectedRemoteVault) {
+          addVaultDisconnectButton(setting, controller, requestRefresh);
+        }
       },
     });
   } else if (!hasConnectedRemoteVault) {
@@ -182,8 +186,9 @@ export function buildSynchSettingDefinitions(
   } else {
     definitions.push({
       name: t("sync.label"),
-      aliases: [t("sync.start"), t("sync.stop"), t("sync.now")],
+      aliases: [t("sync.start"), t("sync.stop"), t("sync.now"), t("sync.disconnect"), t("vault.disconnect")],
       render: (setting) => {
+        addVaultDisconnectButton(setting, controller, requestRefresh);
         host.setSyncRowControls(populateSyncStatusSetting(setting, controller));
       },
     });
@@ -197,20 +202,21 @@ export function buildSynchSettingDefinitions(
     });
   }
 
-  definitions.push({
-    name: t("authentication"),
-    render: (setting) => {
-      populateAuthenticationSetting(
-        setting,
-        controller,
-        isDeviceLoginInProgress,
-        requestRefresh,
-      );
-    },
-  });
-
   // Onboarding follows the current connection state, including after disconnect.
-  if (!hasConnectedRemoteVault) return definitions;
+  if (!hasConnectedRemoteVault) {
+    definitions.push({
+      name: t("authentication"),
+      render: (setting) => {
+        populateAuthenticationSetting(
+          setting,
+          controller,
+          isDeviceLoginInProgress,
+          requestRefresh,
+        );
+      },
+    });
+    return definitions;
+  }
 
   if (isOfficialCloud) {
     definitions.push({
@@ -231,13 +237,6 @@ export function buildSynchSettingDefinitions(
   });
 
   if (hasConnectedRemoteVault) {
-    definitions.push({
-      name: t("vault.setting"),
-      aliases: [t("vault.disconnect")],
-      render: (setting) => {
-        populateVaultConnectionSetting(setting, controller, requestRefresh);
-      },
-    });
     definitions.push({
       name: t("deleted.header"),
       aliases: [t("vault.viewDeletedFiles")],
