@@ -13,8 +13,8 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
-	// public/vault-crypto.js is a tracked, CI-verified browser bundle of
-	// @synch/vault-crypto so this directory remains a standalone deploy template.
+	// Vite builds the React MPA before dev, dry-run builds, and deploys.
+	"build": { "command": "pnpm run build:public", "watch_dir": "./web" },
 	"migrations": [
 		{
 			"new_sqlite_classes": [
