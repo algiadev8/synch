@@ -75,6 +75,7 @@
     "requestFailed": "Request failed."
   },
   "vaults": {
+    "refreshFailed": "The latest vault list could not be loaded. Refresh to continue.",
     "title": "Remote vaults",
     "organization": "Organization",
     "organizations": "Manage organizations",
@@ -137,6 +138,9 @@
     "deletionStatus": "Deletion {status}"
   },
   "organizations": {
+    "savedRefreshFailed": "Changes saved, but the latest data could not be loaded. Refresh to continue.",
+    "linkReady": "Invitation link ready.",
+    "loading": "Loading organization…",
     "title": "Organizations",
     "subtitle": "Manage members, invitations, and access to encrypted vaults.",
     "name": "Organization name",

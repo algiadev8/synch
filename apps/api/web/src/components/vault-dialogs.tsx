@@ -1,5 +1,5 @@
 import { useState, type SubmitEvent } from "react";
-import { Modal } from "./common";
+import { BusyButton, Modal } from "./common";
 import { ApiError, request } from "../lib/api";
 import type { Translator } from "../lib/i18n";
 import type { Vault } from "../pages/vaults";
@@ -161,14 +161,15 @@ export function CreateVaultDialog({
           >
             {t("cancel")}
           </button>
-          <button
+          <BusyButton
+            busy={busy}
             id="confirm-create"
             type="submit"
             className="btn btn--primary"
             disabled={busy || !name.trim() || !password || !confirmation}
           >
             {t(busy ? "creating" : "createConfirm")}
-          </button>
+          </BusyButton>
         </div>
       </form>
     </Modal>
@@ -242,14 +243,15 @@ export function DeleteVaultDialog({
           >
             {t("cancel")}
           </button>
-          <button
+          <BusyButton
+            busy={busy}
             id="confirm-delete"
             type="submit"
             className="btn btn--danger"
             disabled={busy || confirmation !== vault.name}
           >
             {t(busy ? "deleting" : "deletePermanently")}
-          </button>
+          </BusyButton>
         </div>
       </form>
     </Modal>

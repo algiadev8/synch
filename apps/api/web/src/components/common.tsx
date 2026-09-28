@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 
 export function Brand() {
   return (
@@ -94,5 +94,35 @@ export function Modal({
     >
       {children}
     </dialog>
+  );
+}
+
+/** Overlay progress without adding width or removing the accessible label. */
+export function BusyButton({
+  busy = false,
+  children,
+  disabled,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { busy?: boolean }) {
+  return (
+    <button {...props} disabled={disabled || busy} aria-busy={busy}>
+      <span className="button-content">
+        {busy && <span className="loading-spinner" aria-hidden="true" />}
+        <span>{children}</span>
+      </span>
+    </button>
+  );
+}
+
+export function LoadingSkeleton() {
+  return (
+    <div className="loading-skeleton" aria-hidden="true">
+      {[0, 1, 2].map((row) => (
+        <div className="skeleton-card" key={row}>
+          <span className="skeleton-line skeleton-line--title" />
+          <span className="skeleton-line" />
+        </div>
+      ))}
+    </div>
   );
 }

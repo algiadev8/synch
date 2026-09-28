@@ -75,6 +75,7 @@
     "requestFailed": "请求失败。"
   },
   "vaults": {
+    "refreshFailed": "无法加载最新 vault 列表。请刷新后继续。",
     "title": "远程 vault",
     "subtitle": "管理连接到此 Synch 账户的加密 vault。删除远程 vault 不会删除本地 Obsidian 文件。",
     "signOut": "退出登录",
@@ -137,6 +138,9 @@
     "organizations": "管理组织"
   },
   "organizations": {
+    "savedRefreshFailed": "更改已保存，但无法加载最新信息。请刷新后继续。",
+    "linkReady": "邀请链接已生成。",
+    "loading": "正在加载组织…",
     "title": "组织管理",
     "subtitle": "管理成员、邀请以及加密 Vault 的访问权限。",
     "name": "组织名称",

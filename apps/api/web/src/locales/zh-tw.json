@@ -75,6 +75,7 @@
     "requestFailed": "請求失敗。"
   },
   "vaults": {
+    "refreshFailed": "無法載入最新 vault 清單。請重新整理後繼續。",
     "title": "遠端 vault",
     "subtitle": "管理連接到此 Synch 帳戶的加密 vault。刪除遠端 vault 不會刪除本機 Obsidian 檔案。",
     "signOut": "登出",
@@ -137,6 +138,9 @@
     "organizations": "管理組織"
   },
   "organizations": {
+    "savedRefreshFailed": "變更已儲存，但無法載入最新資訊。請重新整理後繼續。",
+    "linkReady": "邀請連結已產生。",
+    "loading": "正在載入組織…",
     "title": "組織管理",
     "subtitle": "管理成員、邀請以及加密 Vault 的存取權限。",
     "name": "組織名稱",

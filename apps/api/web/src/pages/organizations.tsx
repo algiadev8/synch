@@ -5,7 +5,7 @@ import {
   type ReactNode,
   type SubmitEvent,
 } from "react";
-import { Brand, Field, Status, type StatusValue } from "../components/common";
+import { Brand, BusyButton, LoadingSkeleton, Field, Status, type StatusValue } from "../components/common";
 import { errorMessage, getSession, request, type User } from "../lib/api";
 import { localUrl, signIn } from "../lib/navigation";
 import {
@@ -21,8 +21,10 @@ type Action = () => Promise<unknown>;
 interface ManagementProps {
   organization: Organization;
   busy: boolean;
+  pendingAction: string;
+  feedbackFor: (key: string) => ReactNode;
   t: Translator<"organizations">;
-  perform: (action: Action) => Promise<void>;
+  perform: (action: Action, key: string) => Promise<void>;
   api: <T = unknown>(
     suffix: string,
     method: string,
@@ -37,7 +39,11 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
   const [inviteUrl, setInviteUrl] = useState("");
   const [busy, setBusy] = useState(true);
   const lock = useRef(false);
-  const [status, setStatus] = useState<StatusValue>({ message: "…" });
+  const [pendingAction, setPendingAction] = useState("");
+  const [statusAction, setStatusAction] = useState("");
+  const [refreshRequired, setRefreshRequired] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const [status, setStatus] = useState<StatusValue>({ message: t("loading") });
 
   function applyOrganization(detail: Organization) {
     if (!canManage(detail)) {
@@ -57,6 +63,8 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
   }
   useEffect(() => {
     const controller = new AbortController();
+    setBusy(true);
+    setStatus({ message: t("loading") });
     async function initialize() {
       try {
         const session = await getSession(t("failed"), controller.signal);
@@ -103,25 +111,40 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
     }
     void initialize();
     return () => controller.abort();
-  }, [t, locale]);
+  }, [t, locale, retry]);
 
-  async function perform(action: Action, id = selectedId) {
+  async function perform(action: Action, key: string, id = selectedId) {
     if (lock.current || busy) return;
     lock.current = true;
     setBusy(true);
-    setStatus({ message: t("working") });
+    setPendingAction(key);
+    if (key !== "refresh") setStatusAction(key);
+    const isRead = key === "switch" || key === "refresh";
+    let committed = false;
+    setStatus({ message: t(isRead ? "loading" : "working") });
     try {
       const message = await action();
+      committed = !isRead;
       const detail = await request<Organization>(organizationPath(id), {
         fallback: t("failed"),
       });
       applyOrganization(detail);
+      setRefreshRequired(false);
       setStatus({
-        message: typeof message === "string" ? message : t("saved"),
+        message: isRead ? "" : typeof message === "string" ? message : t("saved"),
+        tone: "success",
       });
     } catch (error) {
-      setStatus({ message: errorMessage(error, t("failed")), tone: "error" });
+      if (key === "switch") setSelectedId(organization?.id ?? "");
+      setRefreshRequired(committed || (isRead && refreshRequired));
+      setStatus({
+        message: committed
+          ? t("savedRefreshFailed")
+          : errorMessage(error, t("failed")),
+        tone: "error",
+      });
     } finally {
+      setPendingAction("");
       lock.current = false;
       setBusy(false);
     }
@@ -133,8 +156,37 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
       fallback: t("failed"),
     });
   }
+  const mutationBlocked = busy || refreshRequired;
+  function feedbackFor(key: string) {
+    if (statusAction !== key && !statusAction.startsWith(`${key}:`)) return null;
+    if (!status.message && !refreshRequired) return null;
+    return (
+      <div className="action-feedback">
+        <Status {...status} id="action-status" className="status--bar" />
+        {refreshRequired && (
+          <BusyButton
+            type="button"
+            className="btn btn--secondary btn--compact"
+            busy={pendingAction === "refresh"}
+            disabled={busy}
+            onClick={() => void perform(async () => {}, "refresh")}
+          >
+            {t("refresh")}
+          </BusyButton>
+        )}
+      </div>
+    );
+  }
   const props: ManagementProps | null = organization
-    ? { organization, busy, t, perform, api }
+    ? {
+        organization,
+        busy: mutationBlocked,
+        pendingAction,
+        feedbackFor,
+        t,
+        perform,
+        api,
+      }
     : null;
   let billingUrl = organization?.billingUrl;
   if (billingUrl) {
@@ -143,10 +195,11 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
     billingUrl = url.toString();
   }
   return (
-    <main className="page page--wide organization-page">
-      <div className="topbar organization-topbar">
+    <main className="page page--wide management-page organization-page">
+      <div className="topbar management-topbar">
         <Brand />
         <a
+          className="management-link"
           id="vaults-link"
           href={localUrl(
             "/vaults",
@@ -157,13 +210,17 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
           {t("vaults")}
         </a>
       </div>
-      {organization && (
-        <header id="organization-header" className="vaults-header">
-          <div>
-            <h1 className="page-title">{organization.name}</h1>
-          </div>
-        </header>
-      )}
+      <header id="organization-header" className="vaults-header">
+        <div>
+          <p className="page-eyebrow">{t("organization")}</p>
+          <h1 className="page-title">
+            {(pendingAction === "switch"
+              ? organizations.find((item) => item.id === selectedId)?.name
+              : organization?.name) ?? t("title")}
+          </h1>
+          <p className="vaults-subtitle">{t("subtitle")}</p>
+        </div>
+      </header>
       {organizations.length > 1 && (
         <div id="organization-toolbar" className="org-toolbar">
           <label htmlFor="organization" className="label">
@@ -177,9 +234,8 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
             onChange={(event) => {
               const id = event.target.value;
               setSelectedId(id);
-              setOrganization(null);
               setInviteUrl("");
-              void perform(async () => {}, id);
+              void perform(async () => {}, "switch", id);
             }}
           >
             {organizations.map((item) => (
@@ -190,21 +246,15 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
           </select>
         </div>
       )}
-      {inviteUrl && organization && (
-        <div id="invite-result" className="org-panel">
-          <p>{t("copyLink")}</p>
-          <input
-            className="input"
-            aria-label={t("inviteLink")}
-            readOnly
-            value={inviteUrl}
-            onFocus={(event) => event.currentTarget.select()}
-          />
-        </div>
+      {["", "switch", "leave"].includes(statusAction) && feedbackFor(statusAction)}
+      {!organization && !busy && (
+        <BusyButton type="button" className="btn btn--secondary retry-button" onClick={() => setRetry((value) => value + 1)}>
+          {t("refresh")}
+        </BusyButton>
       )}
-      <Status {...status} className="status--bar" />
-      <div id="detail" className="org-detail">
-        {organization && props && (
+      <div id="detail" className="org-detail" aria-busy={busy}>
+        {busy && (!organization || pendingAction === "switch") && <LoadingSkeleton />}
+        {organization && props && pendingAction !== "switch" && (
           <>
             <section className="org-panel org-summary">
               {!organization.sharing.enabled && (
@@ -229,7 +279,7 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
                   onSubmit={(event) => {
                     event.preventDefault();
                     const name = new FormData(event.currentTarget).get("name");
-                    void perform(() => api("", "PATCH", { name }));
+                    void perform(() => api("", "PATCH", { name }), "rename");
                   }}
                 >
                   <Field label={t("name")}>
@@ -239,17 +289,19 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
                       defaultValue={organization.name}
                       maxLength={100}
                       required
-                      disabled={busy}
+                      disabled={mutationBlocked}
                     />
                   </Field>
-                  <button
+                  <BusyButton
+                    busy={pendingAction === "rename"}
                     type="submit"
                     className="btn btn--secondary btn--compact"
-                    disabled={busy}
+                    disabled={mutationBlocked}
                   >
                     {t("rename")}
-                  </button>
+                  </BusyButton>
                 </form>
+                {feedbackFor("rename")}
               </details>
             </section>
             <Members {...props} />
@@ -257,9 +309,13 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
               key={organization.id}
               {...props}
               onInvite={setInviteUrl}
+              inviteUrl={inviteUrl}
             />
             <section className="org-vaults">
-              <h2 className="org-section-title">{t("vaults")}</h2>
+              <div className="org-panel-heading">
+                <h2 className="org-section-title">{t("vaults")}</h2>
+                <span className="org-count">{organization.vaults.length}</span>
+              </div>
               {organization.vaults.some(
                 (vault) =>
                   vault.status === "pending_key" ||
@@ -271,7 +327,10 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
                 <section key={vault.id} className="org-panel org-vault">
                   <h3 className="org-heading">{vault.name}</h3>
                   <p className="vault-meta">
-                    {t("yourAccess")}: {t(vault.status ?? "noAccess")}
+                    {t("yourAccess")}: {" "}
+                    <span className={`access-status access-status--${vault.status ?? "noAccess"}`}>
+                      {t(vault.status ?? "noAccess")}
+                    </span>
                   </p>
                   {vault.shared && !organization.sharing.enabled && (
                     <p className="org-warning">{t("suspended")}</p>
@@ -282,8 +341,11 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
                       className="org-row"
                     >
                       <div className="org-person">
-                        {member.email} · {t(member.status)}
+                        {member.email}
                       </div>
+                      <span className={`access-status access-status--${member.status}`}>
+                        {t(member.status)}
+                      </span>
                     </div>
                   ))}
                 </section>
@@ -295,7 +357,8 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
             {organization.role !== "owner" && user && (
               <ActionButton
                 danger
-                busy={busy}
+                pending={pendingAction === "leave"}
+                busy={mutationBlocked}
                 onClick={() => {
                   if (!confirm(t("removeConfirm"))) return;
                   void perform(async () => {
@@ -305,7 +368,7 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
                     );
                     setOrganization(null);
                     location.assign(localUrl("/organizations", locale));
-                  });
+                  }, "leave");
                 }}
               >
                 {t("leave")}
@@ -320,26 +383,29 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
 function ActionButton({
   children,
   danger,
+  pending = false,
   busy,
   onClick,
 }: {
   children: ReactNode;
   danger?: boolean;
+  pending?: boolean;
   busy: boolean;
   onClick: () => void;
 }) {
   return (
-    <button
+    <BusyButton
+      busy={pending}
       type="button"
       disabled={busy}
       className={`btn btn--compact btn--${danger ? "danger" : "secondary"}`}
       onClick={onClick}
     >
       {children}
-    </button>
+    </BusyButton>
   );
 }
-function Members({ organization, busy, t, perform, api }: ManagementProps) {
+function Members({ organization, busy, pendingAction, feedbackFor, t, perform, api }: ManagementProps) {
   return (
     <section className="org-panel org-members">
       <div className="org-panel-heading">
@@ -349,67 +415,80 @@ function Members({ organization, busy, t, perform, api }: ManagementProps) {
       {organization.members.map((member) => (
         <div key={member.id} className="org-row">
           <div className="org-person">
+            <span className="person-avatar" aria-hidden="true">
+              {(member.name || member.email).slice(0, 1).toUpperCase()}
+            </span>
             <div className="org-person-info">
               <span className="org-person-name">{member.name}</span>
               <span className="vault-meta">{member.email}</span>
             </div>
           </div>
-          {member.role === "owner" || organization.role !== "owner" ? (
-            <span className="org-role">{t(member.role)}</span>
-          ) : (
-            <select
-              aria-label={t("role")}
-              className="input"
-              disabled={busy}
-              value={member.role}
-              onChange={(event) => {
-                const role = event.target.value;
-                void perform(() =>
-                  api(`/members/${encodeURIComponent(member.id)}`, "PATCH", {
-                    role,
-                  }),
-                );
-              }}
-            >
-              {(["member", "admin"] as const).map((role) => (
-                <option key={role} value={role}>
-                  {t(role)}
-                </option>
-              ))}
-            </select>
-          )}
-          {member.role !== "owner" &&
-            (organization.role === "owner" || member.role === "member") && (
-              <ActionButton
-                busy={busy}
-                danger
-                onClick={() => {
-                  if (!confirm(t("removeConfirm"))) return;
-                  void perform(async () => {
-                    const result = await api<{ pending?: boolean }>(
-                      `/members/${encodeURIComponent(member.id)}`,
-                      "DELETE",
-                    );
-                    return t(result.pending ? "pendingRefresh" : "saved");
-                  });
+          <div className="org-member-actions" aria-busy={pendingAction === `role:${member.id}`}>
+            {pendingAction === `role:${member.id}` && <span className="loading-spinner" aria-hidden="true" />}
+            {member.role === "owner" || organization.role !== "owner" ? (
+              <span className="org-role">{t(member.role)}</span>
+            ) : (
+              <select
+                aria-label={t("role")}
+                className="input"
+                disabled={busy}
+                value={member.role}
+                onChange={(event) => {
+                  const role = event.target.value;
+                  void perform(() =>
+                    api(`/members/${encodeURIComponent(member.id)}`, "PATCH", {
+                      role,
+                    }),
+                    `role:${member.id}`,
+                  );
                 }}
               >
-                {t("remove")}
-              </ActionButton>
+                {(["member", "admin"] as const).map((role) => (
+                  <option key={role} value={role}>
+                    {t(role)}
+                  </option>
+                ))}
+              </select>
             )}
+            {member.role !== "owner" &&
+              (organization.role === "owner" || member.role === "member") && (
+                <ActionButton
+                  busy={busy}
+                  pending={pendingAction === `remove:${member.id}`}
+                  danger
+                  onClick={() => {
+                    if (!confirm(t("removeConfirm"))) return;
+                    void perform(async () => {
+                      const result = await api<{ pending?: boolean }>(
+                        `/members/${encodeURIComponent(member.id)}`,
+                        "DELETE",
+                      );
+                      return t(result.pending ? "pendingRefresh" : "saved");
+                    }, `remove:${member.id}`);
+                  }}
+                >
+                  {t("remove")}
+                </ActionButton>
+              )}
+          </div>
         </div>
       ))}
+      {feedbackFor("role")}
+      {feedbackFor("remove")}
     </section>
   );
 }
 function Invitations({
   organization,
   busy,
+  pendingAction,
+  feedbackFor,
   t,
   perform,
   api,
   onInvite,
-}: ManagementProps & { onInvite: (url: string) => void }) {
+  inviteUrl,
+}: ManagementProps & { onInvite: (url: string) => void; inviteUrl: string }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("member");
   const pending = organization.invitations.filter(
@@ -423,18 +502,20 @@ function Invitations({
     );
     onInvite(result.url);
     setEmail("");
-    return t(result.emailSent ? "sent" : "copyLink");
+    return t(result.emailSent ? "sent" : "linkReady");
   }
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    void perform(() => send("/invitations", { email, role }));
+    void perform(() => send("/invitations", { email, role }), "invite");
   }
-  if (!organization.sharing.enabled && !pending.length) return null;
+  if (!organization.sharing.enabled && !pending.length) {
+    return <>{feedbackFor("cancel")}{feedbackFor("resend")}</>;
+  }
   return (
     <section className="org-panel org-invitations">
       {organization.sharing.enabled && (
-        <details className="org-invite-disclosure">
-          <summary>{t("invite")}</summary>
+        <div className="org-invite-form">
+          <h2 className="org-heading">{t("invite")}</h2>
           <form className="org-form" onSubmit={submit}>
             <Field label={t("email")}>
               <input
@@ -461,11 +542,24 @@ function Invitations({
                 )}
               </select>
             </Field>
-            <button type="submit" className="btn btn--primary" disabled={busy}>
+            <BusyButton busy={pendingAction === "invite"} type="submit" className="btn btn--primary" disabled={busy}>
               {t("invite")}
-            </button>
+            </BusyButton>
           </form>
-        </details>
+        </div>
+      )}
+      {feedbackFor("invite")}
+      {inviteUrl && (
+        <div id="invite-result" className="invite-result">
+          <p>{t("copyLink")}</p>
+          <input
+            className="input"
+            aria-label={t("inviteLink")}
+            readOnly
+            value={inviteUrl}
+            onFocus={(event) => event.currentTarget.select()}
+          />
+        </div>
       )}
       {pending.length > 0 && (
         <h3 className="org-list-title">{t("invitations")}</h3>
@@ -475,16 +569,21 @@ function Invitations({
         return (
           <div key={invitation.id} className="org-row">
             <span className="org-person">
-              {invitation.email} · {t(expired ? "expired" : "pending")}
+              {invitation.email}
+              <span className="access-status">
+                {t(expired ? "expired" : "pending")}
+              </span>
             </span>
             {!expired && organization.sharing.enabled && (
               <ActionButton
+                pending={pendingAction === `resend:${invitation.id}`}
                 busy={busy}
                 onClick={() =>
                   void perform(() =>
                     send(
                       `/invitations/${encodeURIComponent(invitation.id)}/resend`,
                     ),
+                    `resend:${invitation.id}`,
                   )
                 }
               >
@@ -492,6 +591,7 @@ function Invitations({
               </ActionButton>
             )}
             <ActionButton
+              pending={pendingAction === `cancel:${invitation.id}`}
               busy={busy}
               onClick={() =>
                 void perform(() =>
@@ -499,6 +599,7 @@ function Invitations({
                     `/invitations/${encodeURIComponent(invitation.id)}/cancel`,
                     "POST",
                   ),
+                  `cancel:${invitation.id}`,
                 )
               }
             >
@@ -507,6 +608,8 @@ function Invitations({
           </div>
         );
       })}
+      {feedbackFor("resend")}
+      {feedbackFor("cancel")}
     </section>
   );
 }

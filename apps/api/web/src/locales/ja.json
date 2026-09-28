@@ -75,6 +75,7 @@
     "requestFailed": "リクエストに失敗しました。"
   },
   "vaults": {
+    "refreshFailed": "最新のVault一覧を読み込めませんでした。更新して続行してください。",
     "title": "リモート Vault",
     "subtitle": "この Synch アカウントに接続された暗号化 Vault を管理します。リモート Vault を削除しても、ローカルの Obsidian ファイルは削除されません。",
     "signOut": "サインアウト",
@@ -137,6 +138,9 @@
     "organizations": "組織を管理"
   },
   "organizations": {
+    "savedRefreshFailed": "変更は保存されましたが、最新の情報を読み込めませんでした。更新して続行してください。",
+    "linkReady": "招待リンクを作成しました。",
+    "loading": "組織を読み込み中…",
     "title": "組織の管理",
     "subtitle": "メンバー、招待、暗号化された Vault へのアクセスを管理します。",
     "name": "組織名",

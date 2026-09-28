@@ -75,6 +75,7 @@
     "requestFailed": "Die Anfrage ist fehlgeschlagen."
   },
   "vaults": {
+    "refreshFailed": "Die aktuelle Vault-Liste konnte nicht geladen werden. Zum Fortfahren aktualisieren.",
     "title": "Remote-Vaults",
     "subtitle": "Verwalten Sie verschlüsselte Vaults, die mit diesem Synch-Konto verbunden sind. Das Löschen eines Remote-Vaults löscht keine lokalen Obsidian-Dateien.",
     "signOut": "Abmelden",
@@ -137,6 +138,9 @@
     "organizations": "Organisationen verwalten"
   },
   "organizations": {
+    "savedRefreshFailed": "Änderungen gespeichert, aber die aktuellen Daten konnten nicht geladen werden. Zum Fortfahren aktualisieren.",
+    "linkReady": "Einladungslink erstellt.",
+    "loading": "Organisation wird geladen…",
     "title": "Organisationen",
     "subtitle": "Verwalte Mitglieder, Einladungen und den Zugriff auf verschlüsselte Vaults.",
     "name": "Organisationsname",

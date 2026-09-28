@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Brand, Status, type StatusValue } from "../components/common";
+import { Brand, BusyButton, LoadingSkeleton, Status, type StatusValue } from "../components/common";
 import {
   CreateVaultDialog,
   DeleteVaultDialog,
@@ -35,14 +35,19 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
   const selectedRef = useRef(selectedId);
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [loading, setLoading] = useState(true);
+  const [retry, setRetry] = useState(0);
+  const [backgroundLoading, setBackgroundLoading] = useState(false);
+  const [refreshRequired, setRefreshRequired] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState<StatusValue>({ message: t("loading") });
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Vault | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  const organizationRef = useRef(organization);
+  organizationRef.current = organization;
   const activeRequest = useRef<AbortController | null>(null);
   const loadVaults = useCallback(
-    async (successMessage?: string) => {
+    async (successMessage?: string, background = false) => {
       activeRequest.current?.abort();
       const controller = new AbortController();
       activeRequest.current = controller;
@@ -51,10 +56,8 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
         signal: controller.signal,
       };
       setLoading(true);
-      setLoaded(false);
-      setOrganization(null);
-      setVaults([]);
-      setStatus({ message: t("loading") });
+      setBackgroundLoading(background);
+      if (!background) setStatus({ message: t("loading") });
       try {
         const result = await request<{ organizations: OrganizationSummary[] }>(
           "/v1/organizations",
@@ -62,7 +65,7 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
         );
         if (controller.signal.aborted) return;
         const visible = result.organizations.filter(canManage);
-        setOrganizations(visible);
+
         const id =
           visible.find((item) => item.id === selectedRef.current)?.id ??
           visible[0]?.id ??
@@ -70,6 +73,7 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
         selectedRef.current = id;
         setSelectedId(id);
         let items: Vault[] = [];
+        let nextOrganization: Organization | null = null;
         if (id) {
           const detail = await request<Organization>(
             organizationPath(id),
@@ -82,16 +86,17 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
               options,
             );
             if (controller.signal.aborted) return;
-            setOrganization(detail);
+            nextOrganization = detail;
             items = result.vaults.filter(
               (vault) => vault.organizationId === id,
             );
-          } else {
-            setOrganizations([]);
           }
         }
+        setOrganizations(nextOrganization ? visible : []);
+        setOrganization(nextOrganization);
         setVaults(items);
         setLoaded(true);
+        setRefreshRequired(false);
         setStatus({
           message:
             successMessage ??
@@ -100,12 +105,18 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
               : t("countMany", { count: items.length })),
         });
       } catch (error) {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
+          setSelectedId(organizationRef.current?.id ?? "");
+          selectedRef.current = organizationRef.current?.id ?? "";
+          if (successMessage) setRefreshRequired(true);
           setStatus({
             message:
-              error instanceof ApiError ? error.message : t("apiUnavailable"),
+              successMessage
+                ? `${successMessage} ${t("refreshFailed")}`
+                : error instanceof ApiError ? error.message : t("apiUnavailable"),
             tone: "error",
           });
+        }
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -114,6 +125,8 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
   );
   useEffect(() => {
     const controller = new AbortController();
+    setLoading(true);
+    setStatus({ message: t("loading") });
     void getSession(t("apiUnavailable"), controller.signal)
       .then(async (session) => {
         if (controller.signal.aborted) return;
@@ -134,10 +147,10 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
       controller.abort();
       activeRequest.current?.abort();
     };
-  }, [t, locale, loadVaults]);
+  }, [t, locale, loadVaults, retry]);
   useEffect(() => {
     if (loading || creating || deleting || !vaults.some(isDeleting)) return;
-    const timer = setTimeout(() => void loadVaults(), 2500);
+    const timer = setTimeout(() => void loadVaults(undefined, true), 2500);
     return () => clearTimeout(timer);
   }, [vaults, loading, creating, deleting, loadVaults]);
   async function logout() {
@@ -155,7 +168,9 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
       setLoggingOut(false);
     }
   }
-  function metadata(vault: Vault) {
+  const switching = Boolean(organization && selectedId !== organization.id);
+  const showSkeleton = loading && (!loaded || switching);
+  function createdDate(vault: Vault) {
     const date = new Date(vault.createdAt);
     const formatted = Number.isNaN(date.getTime())
       ? t("unknown")
@@ -164,34 +179,20 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
           month: "short",
           day: "numeric",
         }).format(date);
-    return [
-      vault.id,
-      t("created", { date: formatted }),
-      vault.deletionStatus
-        ? t("deletionStatus", { status: vault.deletionStatus })
-        : "",
-      vault.deletionError,
-    ]
-      .filter(Boolean)
-      .join(" - ");
+    return t("created", { date: formatted });
   }
   return (
     <>
-      <div className="page page--wide">
-        <div className="topbar">
+      <main className="page page--wide management-page">
+        <div className="topbar management-topbar">
           <Brand />
-        </div>
-        <header className="vaults-header">
-          <div>
-            <h1 className="page-title">{t("title")}</h1>
-            <p className="vaults-subtitle">{t("subtitle")}</p>
-          </div>
           {user && (
             <div id="user-container" className="user-area">
               <div id="user" className="user-badge">
                 {user.email || user.name || t("signedIn")}
               </div>
-              <button
+              <BusyButton
+                busy={loggingOut}
                 id="logout"
                 type="button"
                 className="signout-button"
@@ -199,9 +200,15 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
                 onClick={() => void logout()}
               >
                 {t("signOut")}
-              </button>
+              </BusyButton>
             </div>
           )}
+        </div>
+        <header className="vaults-header">
+          <div>
+            <h1 className="page-title">{t("title")}</h1>
+            <p className="vaults-subtitle">{t("subtitle")}</p>
+          </div>
         </header>
         {organizations.length > 0 && (
           <div id="organization-toolbar" className="org-toolbar">
@@ -228,6 +235,7 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
             {organization && (
               <a
                 id="organizations-link"
+                className="management-link"
                 href={localUrl("/organizations", locale, {
                   organizationId: organization.id,
                 })}
@@ -240,20 +248,21 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
         <div className="vaults-toolbar">
           <Status {...status} className="status--bar" />
           <div className="vaults-actions">
-            <button
+            <BusyButton
+              busy={loading && !backgroundLoading}
               id="refresh"
               type="button"
               className="btn btn--secondary btn--compact btn--fluid"
-              disabled={loading || !user}
-              onClick={() => void loadVaults()}
+              disabled={loading}
+              onClick={() => user ? void loadVaults() : setRetry((value) => value + 1)}
             >
               {t("refresh")}
-            </button>
+            </BusyButton>
             <button
               id="create-vault"
               type="button"
               className="btn btn--primary btn--compact btn--fluid"
-              disabled={loading || !canManage(organization)}
+              disabled={loading || refreshRequired || !canManage(organization)}
               onClick={() => {
                 setCreating(true);
                 void loadVaultCrypto().catch(() => {});
@@ -263,18 +272,27 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
             </button>
           </div>
         </div>
-        <section id="vault-list" className="vault-list" aria-live="polite">
-          {vaults.map((vault) => (
+        <section id="vault-list" className="vault-list" aria-busy={loading}>
+          {showSkeleton && <LoadingSkeleton />}
+          {!showSkeleton && vaults.map((vault) => (
             <article key={vault.id} className="vault-card">
-              <div>
+              <div className="vault-info">
                 <h2 className="vault-name">{vault.name}</h2>
-                <p className="vault-meta">{metadata(vault)}</p>
+                <p className="vault-meta">{createdDate(vault)}</p>
+                {vault.deletionStatus && (
+                  <p className="vault-deletion-status">
+                    {t("deletionStatus", { status: vault.deletionStatus })}
+                  </p>
+                )}
+                {vault.deletionError && (
+                  <p className="form-error">{vault.deletionError}</p>
+                )}
               </div>
               {canManage(organization) && (
                 <button
                   type="button"
-                  className="btn btn--danger btn--fluid"
-                  disabled={isDeleting(vault)}
+                  className="btn btn--danger btn--compact vault-delete"
+                  disabled={loading || refreshRequired || isDeleting(vault)}
                   onClick={() => setDeleting(vault)}
                 >
                   {t(isDeleting(vault) ? "deleting" : "delete")}
@@ -283,12 +301,12 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
             </article>
           ))}
         </section>
-        {loaded && !vaults.length && (
+        {loaded && !showSkeleton && !vaults.length && (
           <section id="empty-guide">
             <EmptyGuide t={t} />
           </section>
         )}
-      </div>
+      </main>
       {creating && organization && (
         <CreateVaultDialog
           t={t}

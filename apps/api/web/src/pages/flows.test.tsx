@@ -353,9 +353,6 @@ describe("organization management", () => {
     await screen.findByRole("heading", { name: "My organization" });
     expect(screen.getAllByRole("combobox", { name: "Role" })).toHaveLength(1);
     const user = userEvent.setup();
-    await user.click(
-      screen.getByText("Invite member", { selector: "summary" }),
-    );
     await user.type(
       screen.getByLabelText("Email address"),
       "invited@example.com",
@@ -429,4 +426,106 @@ describe("organization management", () => {
     );
     await waitFor(() => expect(redirect).toHaveBeenCalledWith("en"));
   });
+});
+
+describe("management loading feedback", () => {
+  function deferredResponse() {
+    let resolve!: (response: Response) => void;
+    const promise = new Promise<Response>((done) => { resolve = done; });
+    return { promise, resolve };
+  }
+
+  it("keeps vaults visible during refresh and recovers after an error", async () => {
+    const refresh = deferredResponse();
+    let refreshing = false;
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("get-session")) return json(session);
+      if (url === "/v1/organizations") return refreshing ? refresh.promise : json({ organizations: [organization] });
+      if (url.startsWith("/v1/organizations/")) return json(organization);
+      return json({ vaults: [{ id: "v1", name: "My notes", organizationId: "org-1", createdAt: "2026-01-01" }] });
+    });
+    render(<VaultsPage t={await translator("vaults", "en")} locale="en" />);
+    await screen.findByText("My notes");
+    refreshing = true;
+    await userEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(screen.getByText("My notes")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Refresh" }).getAttribute("aria-busy")).toBe("true");
+    expect((screen.getByRole("button", { name: "Delete" }) as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => refresh.resolve(json({ message: "Connection interrupted" }, 503)));
+    await screen.findByText("Connection interrupted");
+    expect(screen.getByText("My notes")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Refresh" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("restores the selected organization after a failed switch", async () => {
+    const switching = deferredResponse();
+    const other = { ...organization, id: "org-2", name: "Other workspace" };
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("get-session")) return json(session);
+      if (url === "/v1/organizations") return json({ organizations: [organization, other] });
+      if (url.endsWith("org-2")) return switching.promise;
+      return json(organization);
+    });
+    render(<OrganizationsPage t={await translator("organizations", "en")} locale="en" />);
+    await screen.findByRole("heading", { name: "My organization" });
+    await userEvent.selectOptions(screen.getByLabelText("Organization"), "org-2");
+    expect(screen.queryByLabelText("Email address")).toBeNull();
+    expect(screen.getByText("Loading organization…")).toBeTruthy();
+    await act(async () => switching.resolve(json({ message: "Try again" }, 503)));
+    await screen.findByText("Try again");
+    expect((screen.getByLabelText("Organization") as HTMLSelectElement).value).toBe("org-1");
+    expect(screen.getByLabelText("Email address")).toBeTruthy();
+    expect(location.search).toContain("organizationId=org-1");
+  });
+
+  it("marks only the submitted action busy and preserves failed invitation input", async () => {
+    const invitation = deferredResponse();
+    fetchMock.mockImplementation(async (input, init) => {
+      if (String(input).includes("get-session")) return json(session);
+      if (String(input) === "/v1/organizations") return json({ organizations: [organization] });
+      if (init?.method === "POST") return invitation.promise;
+      return json(organization);
+    });
+    render(<OrganizationsPage t={await translator("organizations", "en")} locale="en" />);
+    const email = await screen.findByLabelText("Email address");
+    await userEvent.type(email, "invite@example.com");
+    const invite = screen.getByRole("button", { name: "Invite member" });
+    await userEvent.click(invite);
+    await userEvent.click(invite);
+    expect(invite.getAttribute("aria-busy")).toBe("true");
+    expect(screen.getByRole("button", { name: "Remove member" }).getAttribute("aria-busy")).toBe("false");
+    expect(screen.getByText("member@example.com")).toBeTruthy();
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+    await act(async () => invitation.resolve(json({ message: "Invitation failed" }, 503)));
+    await screen.findByText("Invitation failed");
+    expect((email as HTMLInputElement).value).toBe("invite@example.com");
+    expect((invite as HTMLButtonElement).disabled).toBe(false);
+    expect(invite.getAttribute("aria-busy")).toBe("false");
+  });
+});
+
+it("retries only the read after an invitation succeeds but refreshing fails", async () => {
+  let detailRequests = 0;
+  fetchMock.mockImplementation(async (input, init) => {
+    const url = String(input);
+    if (url.includes("get-session")) return json(session);
+    if (url === "/v1/organizations") return json({ organizations: [organization] });
+    if (init?.method === "POST") return json({ url: "http://localhost:3000/invitations?invitationId=created", emailSent: false });
+    detailRequests += 1;
+    return detailRequests === 2 ? json({ message: "Temporary outage" }, 503) : json(organization);
+  });
+  render(<OrganizationsPage t={await translator("organizations", "en")} locale="en" />);
+  await userEvent.type(await screen.findByLabelText("Email address"), "new@example.com");
+  await userEvent.click(screen.getByRole("button", { name: "Invite member" }));
+  const message = await screen.findByText("Changes saved, but the latest data could not be loaded. Refresh to continue.");
+  expect(message.closest(".org-invitations")).toBeTruthy();
+  expect(screen.getByLabelText("Invitation link").closest(".org-invitations")).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Invite member" }) as HTMLButtonElement).disabled).toBe(true);
+  await userEvent.click(screen.getByRole("button", { name: "Refresh" }));
+  await waitFor(() => expect((screen.getByRole("button", { name: "Invite member" }) as HTMLButtonElement).disabled).toBe(false));
+  expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+  expect((screen.getByLabelText("Invitation link") as HTMLInputElement).value).toContain("invitationId=created");
+  expect(detailRequests).toBe(3);
 });

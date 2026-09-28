@@ -75,6 +75,7 @@
     "requestFailed": "요청에 실패했습니다."
   },
   "vaults": {
+    "refreshFailed": "최신 vault 목록을 불러오지 못했습니다. 새로고침 후 계속하세요.",
     "title": "원격 vault",
     "subtitle": "이 Synch 계정에 연결된 암호화 vault를 관리합니다. 원격 vault를 삭제해도 로컬 Obsidian 파일은 삭제되지 않습니다.",
     "signOut": "로그아웃",
@@ -137,6 +138,9 @@
     "organizations": "조직 관리"
   },
   "organizations": {
+    "savedRefreshFailed": "변경 사항은 저장됐지만 최신 정보를 불러오지 못했습니다. 새로고침 후 계속하세요.",
+    "linkReady": "초대 링크가 준비됐습니다.",
+    "loading": "조직 불러오는 중…",
     "title": "조직 관리",
     "subtitle": "멤버, 초대, 암호화된 vault의 접근 권한을 관리합니다.",
     "name": "조직 이름",
