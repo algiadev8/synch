@@ -6,6 +6,8 @@
 
 ## Changed
 
+- Hide the organization name for vaults in your own organization when connecting to a vault.
+
 - Organization members can connect to vaults without separate assignments. Encryption key approval is still required; existing passwords and connections are preserved.
 
 - Moved Disconnect to the Sync row, before Start/Stop sync, and removed the separate vault connection row. Sign out appears after disconnecting the vault.

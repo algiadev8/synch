@@ -58,7 +58,7 @@ export class ConnectVaultFlow {
         .filter((vault) => vault.status === "active" || vault.status === "pending_key")
         .map((vault) => ({
           vault,
-          organizationName: organization.name,
+          organizationName: organization.role === "owner" ? "" : organization.name,
           sharingEnabled: organization.sharing.enabled,
         })),
     );
