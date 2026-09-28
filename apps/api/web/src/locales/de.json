@@ -181,7 +181,7 @@
     "noVaults": "Keine Vaults vorhanden. Erstelle einen unter Remote-Vaults.",
     "suspended": "Gemeinsame Synchronisierung pausiert. Die Daten bleiben erhalten. Nach Erneuerung von Plus wird der Zugriff fortgesetzt.",
     "keyHelp": "Schließe die Schlüsseleinrichtung in Obsidian ab.",
-    "plusLimits": "Plus: 3 Mitglieder einschließlich Eigentümer · 3 Vaults · 2 GB pro Vault · 100 MB pro Datei · 1 Jahr Versionsverlauf",
+    "plusLimits": "Plus: 3 Mitglieder einschließlich Eigentümer · 3 Vaults · 5 GB pro Vault · 100 MB pro Datei · 1 Jahr Versionsverlauf",
     "cancel": "Einladung abbrechen",
     "resend": "Erneut senden",
     "vaults": "Remote-Vaults",

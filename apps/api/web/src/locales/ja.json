@@ -181,7 +181,7 @@
     "noVaults": "vaultがありません。リモートvault画面で作成してください。",
     "suspended": "共有同期は停止中です。データは保持され、Plus を再契約するとアクセスが再開します。",
     "keyHelp": "鍵の設定はObsidianで行ってください。",
-    "plusLimits": "Plus：所有者を含む3名 · Vault 3個 · 各 Vault 2 GB · ファイルあたり100 MB · 履歴1年",
+    "plusLimits": "Plus：所有者を含む3名 · Vault 3個 · 各 Vault 5 GB · ファイルあたり100 MB · 履歴1年",
     "cancel": "招待をキャンセル",
     "resend": "再送信",
     "vaults": "リモート Vault",

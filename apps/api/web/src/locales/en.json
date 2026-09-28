@@ -182,7 +182,7 @@
     "sharingRequired": "Organization sharing is available with Plus or on self-hosted servers.",
     "suspended": "Shared sync is paused. Data is preserved and access resumes when Plus is renewed.",
     "keyHelp": "Complete key setup in Obsidian.",
-    "plusLimits": "Plus: 3 members including the owner · 3 vaults · 2 GB per vault · 100 MB per file · 1 year of history",
+    "plusLimits": "Plus: 3 members including the owner · 3 vaults · 5 GB per vault · 100 MB per file · 1 year of history",
     "cancel": "Cancel invitation",
     "resend": "Resend",
     "vaults": "Remote vaults",

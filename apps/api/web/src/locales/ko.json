@@ -181,7 +181,7 @@
     "noVaults": "vault가 없습니다. 원격 vault 화면에서 생성하세요.",
     "suspended": "공유 동기화가 중지되었습니다. 데이터는 보존되며 Plus를 재구독하면 접근이 재개됩니다.",
     "keyHelp": "키 설정은 Obsidian에서 진행하세요.",
-    "plusLimits": "Plus: 소유자 포함 3명 · Vault 3개 · Vault별 2 GB · 파일당 100 MB · 이력 1년",
+    "plusLimits": "Plus: 소유자 포함 3명 · Vault 3개 · Vault별 5 GB · 파일당 100 MB · 이력 1년",
     "cancel": "초대 취소",
     "resend": "재전송",
     "vaults": "원격 vault",
