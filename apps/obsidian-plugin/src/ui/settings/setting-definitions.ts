@@ -223,7 +223,10 @@ export function buildSynchSettingDefinitions(
     return definitions;
   }
 
-  if (isOfficialCloud) {
+  void controller.ensureOrganizationRoleCheck();
+  const organizationRole = controller.getOrganizationRole();
+
+  if (isOfficialCloud && organizationRole === "owner") {
     definitions.push({
       name: t("subscription.label"),
       render: (setting) => {
@@ -233,13 +236,23 @@ export function buildSynchSettingDefinitions(
     });
   }
 
-  definitions.push({
-    name: t("vault.manage"),
-    desc: t("vault.manageDesc"),
-    render: (setting) => {
-      populateVaultManageSetting(setting, controller);
-    },
-  });
+  // Older self-hosted servers lack organization discovery but still support
+  // vault management. Keep that capability separate from a verified role.
+  const legacyVaultManagement =
+    !isOfficialCloud && controller.isOrganizationRoleApiUnavailable();
+  if (organizationRole === "owner" || organizationRole === "admin" || legacyVaultManagement) {
+    definitions.push({
+      name: t("vault.manage"),
+      desc: t("vault.manageDesc"),
+      render: (setting) => {
+        // Admins still need the plan status to show the sharing action.
+        if (isOfficialCloud && organizationRole === "admin") {
+          void controller.ensureSubscriptionStatusCheck();
+        }
+        populateVaultManageSetting(setting, controller);
+      },
+    });
+  }
 
   if (hasConnectedRemoteVault) {
     definitions.push({

@@ -5,6 +5,7 @@ import { Notice, type Plugin, TFolder } from "obsidian";
 
 import { SynchReadinessCoordinator } from "./readiness-coordinator";
 import { SynchPluginSessionStore } from "./session-store";
+import { SynchOrganizationRoleService } from "./organization-role-service";
 import { SynchSubscriptionService } from "./subscription-service";
 import { SynchPluginUpdateService } from "./update-service";
 import { defaultHttpClient } from "../adapters/http";
@@ -109,6 +110,14 @@ export class SynchPluginController implements SynchSettingsController {
       new Notice(message, timeout);
     },
   });
+  private readonly organizationRoleService = new SynchOrganizationRoleService({
+    getOrganizationId: () => this.remoteVaultManager.getActiveSession()?.summary.organizationId,
+    getApiBaseUrl: () => this.getApiBaseUrl(),
+    hasAuthenticatedSession: () => this.hasAuthenticatedSession(),
+    getAuthSessionToken: () => this.authManager.getAuthSessionToken(),
+    refreshUi: () => this.refreshUi(),
+  });
+
   private readonly subscriptionService = new SynchSubscriptionService({
     getOrganizationId: () => this.remoteVaultManager.getActiveSession()?.summary.organizationId,
     getApiBaseUrl: () => this.getApiBaseUrl(),
@@ -330,6 +339,18 @@ export class SynchPluginController implements SynchSettingsController {
 
   async retryCommunityPluginUpdateCheck(): Promise<void> {
     await this.updateService.retryCommunityPluginUpdateCheck();
+  }
+
+  getOrganizationRole(): string | null {
+    return this.organizationRoleService.getOrganizationRole();
+  }
+
+  isOrganizationRoleApiUnavailable(): boolean {
+    return this.organizationRoleService.isOrganizationRoleApiUnavailable();
+  }
+
+  async ensureOrganizationRoleCheck(): Promise<void> {
+    await this.organizationRoleService.ensureOrganizationRoleCheck();
   }
 
   getSubscriptionStatus(): SynchSubscriptionStatus {

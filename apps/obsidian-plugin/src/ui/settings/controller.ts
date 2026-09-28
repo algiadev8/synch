@@ -28,6 +28,9 @@ export interface SynchSettingsController {
   ensureCommunityPluginUpdateCheck(): Promise<void>;
   retryCommunityPluginUpdateCheck(): Promise<void>;
   getServerCompatibilityStatus(): SynchServerCompatibilityStatus;
+  getOrganizationRole(): string | null;
+  isOrganizationRoleApiUnavailable(): boolean;
+  ensureOrganizationRoleCheck(): Promise<void>;
   getSubscriptionStatus(): SynchSubscriptionStatus;
   ensureSubscriptionStatusCheck(): Promise<void>;
   retrySubscriptionStatusCheck(): Promise<void>;
