@@ -47,6 +47,12 @@ class MockElement {
     this.record?.classes.push(value);
   }
 
+  removeClass(value: string): void {
+    if (this.record) {
+      this.record.classes = this.record.classes.filter((name) => name !== value);
+    }
+  }
+
   createEl(tag: string, options?: { text?: string; cls?: string }): MockElement {
     return this.createChild(tag, options);
   }

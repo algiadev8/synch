@@ -1,7 +1,7 @@
 import { App } from "obsidian";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { RemoteVaultSession, SharingManager, SharingVault, VaultKeyRequest } from "@synch/sync-client/remote";
-import { getButtonComponents, getCreatedElements, getCreatedElementTexts, getTextComponents, resetObsidianMocks } from "../../test-stubs/obsidian";
+import { getButtonComponents, getCreatedElements, getCreatedElementTexts, getNotices, getTextComponents, resetObsidianMocks } from "../../test-stubs/obsidian";
 import { t } from "../../i18n";
 import { SharingModal } from "./sharing-modal";
 
@@ -25,11 +25,57 @@ function setup(connected = false) {
     },
     localRequest: vi.fn(async (): Promise<VaultKeyRequest | null> => null),
     recipientVerificationCode: vi.fn(async () => "verified-local-code"),
+    approve: vi.fn(async () => {}),
   };
   const modal = new SharingModal(new App(), manager as unknown as SharingManager, () => connected ? { summary: { vaultId: vault.id }, remoteVaultKey: new Uint8Array(32) } as RemoteVaultSession : null, () => true, vi.fn());
   return { organization, manager, modal };
 }
 beforeEach(resetObsidianMocks);
+
+it("shows approval and refresh spinners until their requests complete", async () => {
+  const { manager, modal } = setup(true);
+  manager.client.requests.mockResolvedValue([{ ...request, userId: "member", status: "pending" }]);
+  let finishApproval!: () => void;
+  manager.approve.mockImplementation(() => new Promise((resolve) => { finishApproval = resolve; }));
+  modal.open();
+  await tick();
+  const approve = getButtonComponents().findLast((button) => button.text === t("sharing.approve"))!;
+  const spinners = () => getCreatedElements().filter((element) => element.classes.includes("synch-button-spinner"));
+  await approve.click();
+  expect(approve.disabled).toBe(true);
+  expect(spinners()).toHaveLength(1);
+  expect(getNotices()).toHaveLength(0);
+  let finishRefresh!: () => void;
+  manager.client.organizations.mockImplementation(() => new Promise((resolve) => {
+    finishRefresh = () => resolve([]);
+  }));
+  finishApproval();
+  await tick();
+  expect(getNotices()).toEqual([{
+    message: t("sharing.approved", { member: "member", vault: "test" }),
+    timeout: 6000,
+  }]);
+  const refresh = getButtonComponents().findLast((button) => button.text === t("sharing.refresh"))!;
+  expect(refresh.disabled).toBe(true);
+  expect(spinners().length).toBeGreaterThan(0);
+  await refresh.click();
+  expect(manager.client.organizations).toHaveBeenCalledTimes(2);
+  finishRefresh();
+  await tick();
+  expect(refresh.disabled).toBe(false);
+  expect(spinners()).toHaveLength(0);
+});
+
+it("reports approval failures without a success notification", async () => {
+  const { manager, modal } = setup(true);
+  manager.client.requests.mockResolvedValue([{ ...request, userId: "member", status: "pending" }]);
+  manager.approve.mockRejectedValue(new Error("Invalid verification code"));
+  modal.open();
+  await tick();
+  await getButtonComponents().findLast((button) => button.text === t("sharing.approve"))!.click();
+  await tick();
+  expect(getNotices()).toEqual([{ message: "Invalid verification code", timeout: 10000 }]);
+});
 
 it("shows connection status and an empty state without tabs", async () => {
   const { modal } = setup();

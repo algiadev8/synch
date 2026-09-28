@@ -1,6 +1,7 @@
 import { App, Modal, Setting, setIcon, type ButtonComponent } from "obsidian";
 import { t } from "../../i18n";
 import { submitOnEnter } from "../keyboard";
+import { showButtonLoading } from "../button-loading";
 import { ConnectVaultFlow, type ConnectableVault } from "./connect-vault-flow";
 
 export function openConnectVaultModal(
@@ -63,7 +64,7 @@ export class ConnectVaultModal extends Modal {
   private addButton(setting: Setting, label: string, action: () => Promise<void> | void, cta = false): ButtonComponent {
     let control!: ButtonComponent;
     setting.addButton((button) => {
-      button.setButtonText(label).setDisabled(this.busy).onClick(action);
+      button.setButtonText(label).setDisabled(this.busy).onClick(() => this.run(action, button));
       if (cta) button.setCta();
       this.controls.push(button);
       control = button;
@@ -71,8 +72,8 @@ export class ConnectVaultModal extends Modal {
     return control;
   }
 
-  private primary(label: string, action: () => Promise<void>): void {
-    this.addButton(this.row("synch-connect-primary"), label, () => this.run(action), true);
+  private primary(label: string, action: () => Promise<void>): ButtonComponent {
+    return this.addButton(this.row("synch-connect-primary"), label, action, true);
   }
 
   private resetScreen(): void {
@@ -85,17 +86,19 @@ export class ConnectVaultModal extends Modal {
     if (description) this.bodyEl.createEl("p", { text: description, cls: "synch-connect-hint" });
   }
 
-  private async run(action: () => Promise<void>): Promise<void> {
+  private async run(action: () => Promise<void> | void, button?: ButtonComponent): Promise<void> {
     if (this.busy || this.closed) return;
     this.busy = true;
     this.errorEl.setText("");
     this.controls.forEach((button) => { button.setDisabled(true); });
+    const stopLoading = button ? showButtonLoading(button) : undefined;
     try {
       this.flow.assertCurrentAccount();
       await action();
     } catch (error) {
       this.errorEl.setText(error instanceof Error ? error.message : String(error));
     } finally {
+      stopLoading?.();
       this.busy = false;
       this.controls.forEach((button) => { button.setDisabled(false); });
       if (this.connected) this.close();
@@ -127,11 +130,11 @@ export class ConnectVaultModal extends Modal {
       // A previous connection affects ordering only; the user always chooses.
       group.sort((a, b) => Number(b.vault.id === this.preferredId) - Number(a.vault.id === this.preferredId));
       for (const item of group) {
-        const button = this.addButton(this.row("synch-connect-choice"), item.vault.name, () => this.run(async () => {
+        const button = this.addButton(this.row("synch-connect-choice"), item.vault.name, async () => {
           this.selectedId = item.vault.id;
           this.recovering = false;
           await this.refresh();
-        }));
+        });
         const el = button.buttonEl;
         el.empty();
         const icon = el.createSpan({ cls: "synch-connect-vault-icon" });
@@ -149,16 +152,16 @@ export class ConnectVaultModal extends Modal {
     const help = this.bodyEl.createEl("details", { cls: "synch-connect-help" });
     help.createEl("summary", { text: t("vault.missingShared") });
     help.createEl("p", { text: t("vault.acceptOnWeb") });
-    this.addButton(this.row("synch-connect-secondary"), t("sharing.refresh"), () => this.run(() => this.refresh()));
+    this.addButton(this.row("synch-connect-secondary"), t("sharing.refresh"), () => this.refresh());
   }
 
   private async renderAccess(item: ConnectableVault): Promise<void> {
     this.resetScreen();
-    this.addButton(this.row("synch-connect-back"), t("vault.allVaults"), () => this.run(async () => {
+    this.addButton(this.row("synch-connect-back"), t("vault.allVaults"), async () => {
       this.selectedId = null;
       this.recovering = false;
       await this.refresh();
-    }));
+    });
     if (item.organizationName) this.bodyEl.createEl("p", { text: item.organizationName, cls: "synch-connect-eyebrow" });
     this.title(item.vault.name);
     const blocked = await this.flow.blockingReason(item);
@@ -170,16 +173,16 @@ export class ConnectVaultModal extends Modal {
     const { vault } = item;
     if (vault.status === "active" && !this.recovering) {
       this.passwordForm(vault.id, false);
-      if (item.sharingEnabled) this.addButton(this.row("synch-connect-secondary"), t("sharing.recovery"), () => this.run(async () => {
+      if (item.sharingEnabled) this.addButton(this.row("synch-connect-secondary"), t("sharing.recovery"), async () => {
         this.recovering = true;
         await this.refresh();
-      }));
+      });
       return;
     }
-    if (vault.status === "active") this.addButton(this.row("synch-connect-secondary"), t("vault.usePassword"), () => this.run(async () => {
+    if (vault.status === "active") this.addButton(this.row("synch-connect-secondary"), t("vault.usePassword"), async () => {
       this.recovering = false;
       await this.refresh();
-    }));
+    });
     if (!item.sharingEnabled) {
       this.bodyEl.createEl("p", { text: t("sharing.suspended"), cls: "synch-connect-notice" });
       return;
@@ -201,9 +204,9 @@ export class ConnectVaultModal extends Modal {
       this.bodyEl.createEl("p", { text: t("sharing.yourCode"), cls: "synch-connect-hint" });
       const code = await this.flow.verificationCode(vault.id);
       this.bodyEl.createEl("code", { text: code, cls: "synch-connect-code" });
-      this.addButton(this.row("synch-connect-secondary"), t("vault.copyCode"), () => this.run(async () => {
+      this.addButton(this.row("synch-connect-secondary"), t("vault.copyCode"), async () => {
         await navigator.clipboard.writeText(code);
-      }));
+      });
       this.primary(t("vault.checkApproval"), () => this.refresh());
       const help = this.bodyEl.createEl("details", { cls: "synch-connect-help" });
       help.createEl("summary", { text: t("vault.requestHelp") });
@@ -223,15 +226,16 @@ export class ConnectVaultModal extends Modal {
 
   private renderRestart(vaultId: string, parent = this.bodyEl): void {
     parent.createEl("p", { text: t("sharing.restartHelp"), cls: "synch-connect-hint" });
-    this.addButton(this.row("synch-connect-secondary", parent), t("sharing.restart"), () => this.run(async () => {
+    this.addButton(this.row("synch-connect-secondary", parent), t("sharing.restart"), async () => {
       await this.flow.request(vaultId, true);
       await this.refresh();
-    }));
+    });
   }
 
   private passwordForm(vaultId: string, enrollment: boolean): void {
     let password = "";
     let confirmation = "";
+    let submitButton: ButtonComponent;
     const submit = async (): Promise<void> => {
       this.connected = await this.flow.connect(vaultId, password, enrollment ? confirmation : undefined);
     };
@@ -242,7 +246,7 @@ export class ConnectVaultModal extends Modal {
         text.inputEl.autocomplete = enrollment ? "new-password" : "current-password";
         text.inputEl.setAttribute("aria-label", t(enrollment ? "sharing.setPassword" : "vault.password"));
         text.setPlaceholder(t("vault.passwordPlaceholder")).onChange((value) => { password = value; });
-        submitOnEnter(text.inputEl, () => this.run(submit));
+        submitOnEnter(text.inputEl, () => this.run(submit, submitButton));
       });
     if (enrollment) this.row("synch-connect-field")
       .setName(t("vault.confirmPassword"))
@@ -251,8 +255,8 @@ export class ConnectVaultModal extends Modal {
         text.inputEl.autocomplete = "new-password";
         text.inputEl.setAttribute("aria-label", t("vault.confirmPassword"));
         text.setPlaceholder(t("vault.passwordConfirmPlaceholder")).onChange((value) => { confirmation = value; });
-        submitOnEnter(text.inputEl, () => this.run(submit));
+        submitOnEnter(text.inputEl, () => this.run(submit, submitButton));
       });
-    this.primary(t(enrollment ? "vault.saveAndConnect" : "vault.connect"), submit);
+    submitButton = this.primary(t(enrollment ? "vault.saveAndConnect" : "vault.connect"), submit);
   }
 }

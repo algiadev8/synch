@@ -47,6 +47,7 @@ export const ja = {
     "sharing.connectFirst": "承認する前に、自分のパスワードでこの Vault に接続してください。",
     "sharing.code": "相手の確認コード",
     "sharing.approve": "承認",
+    "sharing.approved": ({ member, vault }: { member: string; vault: string }) => `${member} の「${vault}」へのアクセスを承認しました。`,
     "sharing.setPassword": "自分の Vault パスワードを設定",
     "sharing.passwordHelp": "自分のパスワードのみ変更します。他のメンバーのパスワードは変わりません。",
     "sharing.password": "新しいパスワード",

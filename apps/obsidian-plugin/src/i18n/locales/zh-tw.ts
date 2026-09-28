@@ -47,6 +47,7 @@ export const zhTw = {
     "sharing.connectFirst": "請先使用自己的密碼連接此 Vault，再核准存取。",
     "sharing.code": "對方驗證碼",
     "sharing.approve": "核准",
+    "sharing.approved": ({ member, vault }: { member: string; vault: string }) => `已核准 ${member} 存取「${vault}」。`,
     "sharing.setPassword": "設定我的 Vault 密碼",
     "sharing.passwordHelp": "僅變更你的密碼。其他成員保留各自的密碼。",
     "sharing.password": "新密碼",

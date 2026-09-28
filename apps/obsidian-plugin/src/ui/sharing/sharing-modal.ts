@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Setting, setIcon } from "obsidian";
+import { App, Modal, Notice, Setting, setIcon, type ButtonComponent } from "obsidian";
 import {
   SharingManager,
   type SharingVault,
@@ -6,10 +6,12 @@ import {
   type RemoteVaultSession,
 } from "@synch/sync-client/remote";
 import { t } from "../../i18n";
+import { showButtonLoading } from "../button-loading";
 
 export class SharingModal extends Modal {
   private closed = false;
   private busy = false;
+  private controls: ButtonComponent[] = [];
   constructor(
     app: App,
     private readonly manager: SharingManager,
@@ -22,13 +24,13 @@ export class SharingModal extends Modal {
   onOpen(): void {
     this.modalEl.addClass("synch-sharing-modal");
     this.contentEl.addClass("synch-sharing");
-    void this.refresh();
+    void this.run(async () => {});
   }
   onClose(): void {
     this.closed = true;
     this.contentEl.empty();
   }
-  private async run(action: () => Promise<void>): Promise<void> {
+  private async run(action: () => Promise<void>, button?: ButtonComponent): Promise<void> {
     if (this.busy || this.closed) return;
     if (!this.isCurrentAccount()) {
       new Notice(t("sharing.accountChanged"));
@@ -36,20 +38,25 @@ export class SharingModal extends Modal {
       return;
     }
     this.busy = true;
-    this.contentEl.querySelectorAll("button").forEach((button) => {
-      button.disabled = true;
-    });
+    this.controls.forEach((control) => { control.setDisabled(true); });
+    const stopLoading = button ? showButtonLoading(button) : undefined;
     try {
       await action();
     } catch (error) {
       new Notice(error instanceof Error ? error.message : String(error), 10000);
     } finally {
-      this.busy = false;
-      if (!this.closed) await this.refresh();
+      try {
+        if (!this.closed) await this.refresh();
+      } finally {
+        stopLoading?.();
+        this.busy = false;
+        this.controls.forEach((control) => { control.setDisabled(false); });
+      }
     }
   }
   private async refresh(): Promise<void> {
     if (this.closed) return;
+    this.controls = [];
     this.contentEl.empty();
     this.contentEl.createEl("h2", { text: t("sharing.title") });
     const body = this.contentEl.createDiv();
@@ -58,14 +65,19 @@ export class SharingModal extends Modal {
     const footer = this.contentEl.createDiv({ cls: "synch-sharing-footer" });
     new Setting(footer).addButton((button) => {
       button.setButtonText(t("sharing.organizations")).onClick(this.openOrganizations);
+      button.setDisabled(this.busy);
+      this.controls.push(button);
       button.buttonEl.addClass("synch-sharing-web-link");
       setIcon(button.buttonEl.createSpan(), "arrow-up-right");
     });
-    new Setting(footer).addButton((button) =>
-      button.setButtonText(t("sharing.refresh")).onClick(() => {
-        void this.run(async () => {});
-      }),
-    );
+    let stopLoading: (() => void) | undefined;
+    new Setting(footer).addButton((button) => {
+      button.setButtonText(t("sharing.refresh")).setDisabled(this.busy).onClick(() => {
+        void this.run(async () => {}, button);
+      });
+      this.controls.push(button);
+      stopLoading = showButtonLoading(button);
+    });
     try {
       const organizations = await this.manager.client.organizations();
       if (this.closed) return;
@@ -96,6 +108,8 @@ export class SharingModal extends Modal {
       body.createEl("p", {
         text: error instanceof Error ? error.message : String(error),
       });
+    } finally {
+      stopLoading?.();
     }
   }
   private async renderVault(
@@ -163,10 +177,17 @@ export class SharingModal extends Modal {
         code = value;
       }),
     );
-    setting.addButton((button) =>
-      button.setButtonText(t("sharing.approve")).onClick(() => {
-        void this.run(() => this.manager.approve(request, key, code));
-      }),
-    );
+    setting.addButton((button) => {
+      button.setButtonText(t("sharing.approve")).setDisabled(this.busy).onClick(() => {
+        void this.run(async () => {
+          await this.manager.approve(request, key, code);
+          new Notice(t("sharing.approved", {
+            member: member?.email ?? request.userId,
+            vault: vault.name,
+          }), 6000);
+        }, button);
+      });
+      this.controls.push(button);
+    });
   }
 }

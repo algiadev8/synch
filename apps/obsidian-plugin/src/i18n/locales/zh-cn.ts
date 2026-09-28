@@ -47,6 +47,7 @@ export const zhCn = {
     "sharing.connectFirst": "请先使用自己的密码连接此 Vault，再批准访问。",
     "sharing.code": "对方验证码",
     "sharing.approve": "批准",
+    "sharing.approved": ({ member, vault }: { member: string; vault: string }) => `已批准 ${member} 访问“${vault}”。`,
     "sharing.setPassword": "设置我的 Vault 密码",
     "sharing.passwordHelp": "仅更改你的密码。其他成员保留各自的密码。",
     "sharing.password": "新密码",

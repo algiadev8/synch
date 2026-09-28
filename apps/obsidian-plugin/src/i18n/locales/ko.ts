@@ -41,6 +41,7 @@ export const ko = {
     "sharing.connectFirst": "접근을 승인하려면 먼저 본인의 비밀번호로 이 vault에 연결하세요.",
     "sharing.code": "상대방 확인 코드",
     "sharing.approve": "승인",
+    "sharing.approved": ({ member, vault }: { member: string; vault: string }) => `${member} 님의 "${vault}" 접근을 승인했습니다.`,
     "sharing.setPassword": "내 vault 비밀번호 설정",
     "sharing.passwordHelp": "본인의 비밀번호만 바뀝니다. 다른 멤버는 각자의 비밀번호를 유지합니다.",
     "sharing.password": "새 비밀번호",

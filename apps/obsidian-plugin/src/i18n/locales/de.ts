@@ -47,6 +47,7 @@ export const de = {
     "sharing.connectFirst": "Verbinde diesen Vault mit deinem eigenen Passwort, bevor du den Zugriff genehmigst.",
     "sharing.code": "Prüfcode des Empfängers",
     "sharing.approve": "Genehmigen",
+    "sharing.approved": ({ member, vault }: { member: string; vault: string }) => `Zugriff von ${member} auf „${vault}“ genehmigt.`,
     "sharing.setPassword": "Mein Vault-Passwort festlegen",
     "sharing.passwordHelp": "Nur dein Passwort ändert sich. Andere Mitglieder behalten ihre eigenen Passwörter.",
     "sharing.password": "Neues Passwort",

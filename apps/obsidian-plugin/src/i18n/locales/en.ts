@@ -41,6 +41,7 @@ export const en = {
     "sharing.connectFirst": "Connect this vault with your own password before approving access.",
     "sharing.code": "Recipient verification code",
     "sharing.approve": "Approve",
+    "sharing.approved": ({ member, vault }: { member: string; vault: string }) => `Approved ${member}'s access to "${vault}".`,
     "sharing.setPassword": "Set my vault password",
     "sharing.passwordHelp": "Only your password changes. Other members keep their own passwords.",
     "sharing.password": "New password",

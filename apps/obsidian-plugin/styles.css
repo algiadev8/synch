@@ -186,8 +186,39 @@
   }
 }
 
+button.synch-button-loading {
+  position: relative;
+  color: transparent !important;
+}
+
+button.synch-button-loading > * {
+  visibility: hidden;
+}
+
+button.synch-button-loading > .synch-button-spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  visibility: visible;
+  color: var(--text-normal);
+  pointer-events: none;
+}
+
+button.mod-cta.synch-button-loading > .synch-button-spinner {
+  color: var(--text-on-accent);
+}
+
+.synch-button-spinner svg {
+  width: 1em;
+  height: 1em;
+  animation: synch-spin 0.9s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .synch-sync-spinner {
+  .synch-sync-spinner,
+  .synch-button-spinner svg {
     animation: none;
   }
 }

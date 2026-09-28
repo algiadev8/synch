@@ -36,6 +36,30 @@ function setup(status: "active" | "pending_key" = "active") {
 beforeEach(resetObsidianMocks);
 
 describe("connect vault onboarding", () => {
+  it.each(["click", "Enter"])("shows a spinner during %s submission and clears it after failure", async (method) => {
+    const { open, flow } = setup();
+    let fail!: (error: Error) => void;
+    flow.connect.mockImplementation(() => new Promise((_resolve, reject) => { fail = reject; }));
+    void open();
+    await tick();
+    await button("Team notes").click();
+    const submitButton = button(t("vault.connect"));
+    const submission = method === "click"
+      ? submitButton.click()
+      : getTextComponents().at(-1)!.pressKey("Enter");
+    await tick();
+    const spinners = () => getCreatedElements().filter((element) => element.classes.includes("synch-button-spinner"));
+    expect(spinners()).toHaveLength(1);
+    expect(spinners()[0]?.attributes["data-icon"]).toBe("loader-circle");
+    expect(submitButton.disabled).toBe(true);
+    fail(new Error("Wrong password"));
+    await submission;
+    await tick();
+    expect(spinners()).toHaveLength(0);
+    expect(submitButton.disabled).toBe(false);
+    expect(inlineError("Wrong password")).toBe(true);
+  });
+
   it("offers password connection without recovery controls on older servers", async () => {
     const { item, open } = setup();
     item.sharingEnabled = false;
