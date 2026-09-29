@@ -85,6 +85,8 @@
     "requestFailed": "Die Anfrage ist fehlgeschlagen."
   },
   "vaults": {
+    "noManagedOrganization": "Keine Organisationen zu verwalten",
+    "noManagedOrganizationHelp": "Vaults können von Eigentümern und Administratoren verwaltet werden. Als Mitglied verbindest du dich in Obsidian mit freigegebenen Vaults.",
     "refreshFailed": "Die aktuelle Vault-Liste konnte nicht geladen werden. Zum Fortfahren aktualisieren.",
     "title": "Remote-Vaults",
     "subtitle": "Verwalten Sie verschlüsselte Vaults, die mit diesem Synch-Konto verbunden sind. Das Löschen eines Remote-Vaults löscht keine lokalen Obsidian-Dateien.",

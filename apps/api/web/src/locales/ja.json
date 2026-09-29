@@ -85,6 +85,8 @@
     "requestFailed": "リクエストに失敗しました。"
   },
   "vaults": {
+    "noManagedOrganization": "管理できる組織がありません",
+    "noManagedOrganizationHelp": "組織のオーナーと管理者がvaultを管理できます。メンバーの場合は、Obsidianで共有vaultに接続してください。",
     "refreshFailed": "最新のVault一覧を読み込めませんでした。更新して続行してください。",
     "title": "リモート Vault",
     "subtitle": "この Synch アカウントに接続された暗号化 Vault を管理します。リモート Vault を削除しても、ローカルの Obsidian ファイルは削除されません。",

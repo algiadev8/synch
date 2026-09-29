@@ -85,6 +85,8 @@
     "requestFailed": "請求失敗。"
   },
   "vaults": {
+    "noManagedOrganization": "沒有可管理的組織",
+    "noManagedOrganizationHelp": "只有組織擁有者和管理員可以管理 vault。如果您是成員，請在 Obsidian 中連接共用 vault。",
     "refreshFailed": "無法載入最新 vault 清單。請重新整理後繼續。",
     "title": "遠端 vault",
     "subtitle": "管理連接到此 Synch 帳戶的加密 vault。刪除遠端 vault 不會刪除本機 Obsidian 檔案。",

@@ -811,14 +811,28 @@ dialog::backdrop {
 .management-page .org-toolbar .input { flex: 0 1 20rem; min-width: 0; }
 .management-page .org-toolbar .management-link { margin-left: auto; }
 .management-page .input { font-family: inherit; border-radius: 0.5rem; min-height: 2.5rem; border-color: var(--zinc-700); }
+.management-page select.input {
+ appearance: none;
+ -webkit-appearance: none;
+ padding: 0.5rem 2.5rem 0.5rem 0.75rem;
+ background-color: #18181b;
+ background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+ background-repeat: no-repeat;
+ background-position: right 0.75rem center;
+ text-overflow: ellipsis;
+ cursor: pointer;
+}
+.management-page select.input:hover:not(:disabled) { border-color: var(--zinc-500); }
+.management-page select.input:disabled { cursor: not-allowed; }
+.organization-page .org-member-actions select.input { width: 10rem; max-width: 100%; }
 .management-page .input:disabled { opacity: 0.65; }
 .management-page .btn { border-radius: 0.5rem; min-height: 2.5rem; font-size: 0.8125rem; white-space: nowrap; }
 .management-page :is(a, button, summary, input, select):focus-visible { outline: 2px solid #b2b5cd; outline-offset: 4px; }
 .management-page .vaults-toolbar { gap: 1rem; margin-bottom: 1rem; }
 .management-page .vaults-actions { flex-direction: row; gap: 0.5rem; }
 .management-page .vaults-actions .btn { width: auto; }
-.management-page .vault-card { flex-direction: row; align-items: center; padding: 1.25rem 1.5rem; background: #111113; }
-.management-page .vault-info { min-width: 0; }
+.management-page .vault-card { gap: 1rem; flex-direction: row; align-items: center; padding: 1.25rem 1.5rem; background: #111113; }
+.management-page .vault-info { min-width: 0; flex: 1; }
 .management-page .vault-name { overflow-wrap: anywhere; }
 .management-page .vault-meta { color: var(--zinc-400); word-break: normal; overflow-wrap: anywhere; }
 .vault-deletion-status { color: #fbbf24; font-size: 0.75rem; margin-top: 0.5rem; }
@@ -827,17 +841,21 @@ dialog::backdrop {
 .management-page .empty-guide { background: #111113; }
 .management-page .step-body { color: var(--zinc-400); }
 .organization-page .org-detail { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; margin-top: 0; }
-.organization-page .org-panel { padding: 1.5rem; background: #111113; gap: 1rem; align-content: start; min-width: 0; }
+.organization-page .org-panel { overflow: hidden; padding: 1.5rem; background: #111113; gap: 1rem; align-content: start; min-width: 0; }
 .organization-page .org-heading, .organization-page .org-section-title { font-size: 1rem; font-weight: 600; letter-spacing: -0.015em; color: var(--zinc-200); }
-.organization-page .org-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.75rem 1.5rem; padding: 0; border: 0; background: none; }
+.organization-page .org-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; padding: 1rem 1.5rem; }
 .organization-page .org-summary .org-warning { flex-basis: 100%; padding: 0.875rem 1rem; border-left: 2px solid #b78a35; border-radius: 0.25rem; background: #201b12; font-size: 0.8125rem; line-height: 1.7; }
 .organization-page .org-billing { font-size: 0.8125rem; color: var(--zinc-300); }
-.organization-page .org-settings { flex: 1; font-size: 0.8125rem; }
-.organization-page .org-settings summary { cursor: pointer; width: fit-content; padding-block: 0.375rem; }
-.organization-page .org-settings form { margin-top: 1rem; max-width: 34rem; }
+.organization-page .org-settings { flex-basis: 100%; min-width: 0; font-size: 0.8125rem; }
+.organization-page .org-settings .org-inline { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 0.75rem; }
+.organization-page .org-summary .org-billing { margin-left: auto; }
 .org-panel-heading { display: flex; align-items: center; gap: 0.625rem; }
+.organization-page .org-panel > .org-panel-heading { margin: -1.5rem -1.5rem 0; padding: 1rem 1.5rem; border-bottom: 1px solid var(--zinc-800); background: rgb(255 255 255 / 0.015); }
 .org-count { padding: 0.125rem 0.5rem; border-radius: 999px; background: var(--zinc-800); color: var(--zinc-300); font-size: 0.75rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
-.organization-page .org-row { padding: 0.875rem 0; gap: 0.75rem; }
+.organization-page .org-row { padding: 1rem 0; gap: 0.75rem; }
+.organization-page .org-rows { min-width: 0; }
+.organization-page .org-rows:empty { display: none; }
+.organization-page .org-row:first-child { padding-top: 0; }
 .organization-page .org-row:last-child { border-bottom: 0; padding-bottom: 0; }
 .organization-page .org-person { display: flex; align-items: center; gap: 0.75rem; min-width: 0; flex-basis: 12rem; }
 .person-avatar { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; flex-shrink: 0; border: 1px solid var(--zinc-700); border-radius: 50%; background: #202024; color: var(--zinc-300); font-size: 0.8125rem; }
@@ -845,15 +863,19 @@ dialog::backdrop {
 .org-person-info { display: grid; gap: 0.1875rem; min-width: 0; }
 .org-person-name { font-size: 0.875rem; color: var(--zinc-200); }
 .organization-page .org-role { font-size: 0.75rem; color: var(--zinc-300); border: 1px solid var(--zinc-800); border-radius: 0.375rem; padding: 0.25rem 0.625rem; }
-.org-invite-form .org-heading { margin-bottom: 1rem; }
 .organization-page .org-form { grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.45fr) auto; align-items: end; gap: 0.75rem; }
 .organization-page .org-form > .btn { min-width: 7rem; }
 .organization-page .org-field { min-width: 0; }
-.organization-page .org-list-title { font-size: 0.75rem; font-weight: 500; padding-top: 1rem; border-top: 1px solid var(--zinc-800); color: var(--zinc-400); }
+.organization-page .org-list-title { font-size: 0.8125rem; font-weight: 500; color: var(--zinc-300); margin-bottom: 0.875rem; }
+.organization-page .org-invite-form { padding-bottom: 1.25rem; border-bottom: 1px solid var(--zinc-800); }
+.organization-page .org-invitations:not(:has(.org-row)) .org-invite-form { padding-bottom: 0; border-bottom: 0; }
 .organization-page .org-invitations .org-person { flex-wrap: wrap; gap: 0.375rem 0.75rem; }
 .organization-page .org-vaults { display: grid; gap: 0.875rem; }
-.organization-page .org-help { font-size: 0.8125rem; line-height: 1.7; color: var(--zinc-400); }
-.organization-page .org-vault { gap: 0.375rem; }
+.organization-page .org-help { padding: 0.75rem 1rem; border: 1px solid #3d3320; border-radius: 0.5rem; background: #1b1812; font-size: 0.8125rem; line-height: 1.7; color: #dfc58b; }
+.organization-page .org-vault { gap: 1.25rem; }
+.org-vault-header { display: flex; align-items: center; gap: 0.875rem; min-width: 0; flex-wrap: wrap; }
+.org-vault-header .org-heading { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.org-your-access { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .access-status { display: inline-block; font-size: 0.6875rem; line-height: 1.5; padding: 0.1875rem 0.5rem; border-radius: 0.375rem; background: var(--zinc-800); color: var(--zinc-300); }
 .access-status--active { color: #9dd6b4; background: #172820; }
 .access-status--pending_key { color: #dfc58b; background: #2b2417; }
@@ -862,6 +884,7 @@ dialog::backdrop {
 .action-feedback { display: grid; gap: 0.75rem; min-width: 0; }
 .action-feedback .btn { justify-self: start; }
 .organization-page > .action-feedback { margin-bottom: 1rem; }
+.organization-page .org-detail > .btn { justify-self: start; }
 .organization-page .org-settings .action-feedback { margin-top: 0.75rem; }
 @media (max-width: 639px) {
  .management-page { padding: 1.25rem 1rem 3rem; }
@@ -874,12 +897,38 @@ dialog::backdrop {
  .management-page .vaults-toolbar { flex-direction: row; align-items: center; flex-wrap: wrap; }
  .management-page .vault-card { padding: 1rem; }
  .organization-page .org-panel { padding: 1.125rem; }
- .organization-page .org-summary { padding: 0; }
+ .organization-page .org-summary { padding: 0.875rem 1.125rem; }
+ .organization-page .org-panel > .org-panel-heading { margin: -1.125rem -1.125rem 0; padding: 0.875rem 1.125rem; }
+ .org-vault-header .org-your-access { flex-basis: 100%; }
+ .management-page .vault-card { flex-wrap: wrap; }
+ .management-page .vault-card .vault-info { flex-basis: calc(100% - 4rem); }
+ .management-page .vault-delete { margin-left: auto; }
+ .organization-page .org-member-actions { justify-content: flex-end; margin-left: auto; }
  .organization-page .org-form { grid-template-columns: minmax(0, 1fr); }
  .organization-page .org-form > .btn { justify-self: start; }
  .organization-page .org-row > .input { flex: 0 1 auto; max-width: 100%; }
  .organization-page .org-members .org-person { flex-basis: 9rem; }
+ .organization-page .org-settings .org-inline { grid-template-columns: minmax(0, 1fr); }
+ .organization-page .org-settings .btn { justify-self: end; }
  .organization-page .org-inline > .input { width: 100%; }
+}
+
+/* Management content: consistent identity, feedback, and empty states. */
+.vault-icon { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; flex-shrink: 0; border: 1px solid var(--zinc-700); border-radius: 0.75rem; background: #1b1b20; color: #b5b4c5; }
+.management-empty { display: grid; justify-items: center; gap: 0.875rem; padding: 2.5rem 1.5rem; border: 1px dashed var(--zinc-700); border-radius: 0.75rem; background: #111113; text-align: center; line-height: 1.7; }
+.management-empty p { max-width: 34rem; }
+.management-empty .empty-guide-title { margin: 0; }
+.management-page .vault-card--failed { border-color: #623237; }
+.management-page .status--error, .management-page .status--success { padding: 0.75rem 1rem; border: 1px solid currentColor; border-radius: 0.5rem; overflow-wrap: anywhere; }
+.management-page .status--error { background: #231416; border-color: #623237; }
+.management-page .status--success { background: #14221a; border-color: #294b36; }
+.management-page .vaults-toolbar > .status { flex: 1; }
+.management-page .vaults-actions { flex-shrink: 0; }
+.organization-page .org-warning { font-size: 0.8125rem; line-height: 1.7; }
+.access-status--expired { color: var(--zinc-400); border: 1px dashed var(--zinc-600); background: transparent; }
+@media (min-width: 800px) {
+ .management-page .empty-guide { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); }
+ .management-page .empty-guide-header { padding: 2rem; border-bottom: 0; border-right: 1px solid var(--zinc-800); }
 }
 
 /* Async feedback preserves the surrounding content and button dimensions. */

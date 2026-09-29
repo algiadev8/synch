@@ -21,7 +21,7 @@ const preview: Preview = {
     options: { storySort: { order: ["Pages", "Dialogs"] } },
   },
   beforeEach({ parameters }) {
-    document.documentElement.lang = "en";
+    document.documentElement.lang = parameters.locale ?? "en";
     const original = location.href;
     const url = new URL(original);
     for (const key of [
@@ -34,7 +34,7 @@ const preview: Preview = {
       "return_to",
     ])
       url.searchParams.delete(key);
-    url.searchParams.set("lang", "en");
+    url.searchParams.set("lang", parameters.locale ?? "en");
     for (const [key, value] of Object.entries(parameters.query ?? {}))
       url.searchParams.set(key, String(value));
     history.replaceState(null, "", url);

@@ -1,3 +1,4 @@
+import { VaultIcon } from "../components/vault-icon";
 import {
   useEffect,
   useRef,
@@ -271,8 +272,7 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
                   {t("billing")}
                 </a>
               )}
-              <details className="org-settings">
-                <summary>{t("rename")}</summary>
+              <div className="org-settings">
                 <form
                   className="org-inline"
                   key={`${organization.id}:${organization.name}`}
@@ -302,7 +302,7 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
                   </BusyButton>
                 </form>
                 {feedbackFor("rename")}
-              </details>
+              </div>
             </section>
             <Members {...props} />
             <Invitations
@@ -325,33 +325,41 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
               ) && <p className="org-help">{t("keyHelp")}</p>}
               {organization.vaults.map((vault) => (
                 <section key={vault.id} className="org-panel org-vault">
-                  <h3 className="org-heading">{vault.name}</h3>
-                  <p className="vault-meta">
-                    {t("yourAccess")}: {" "}
-                    <span className={`access-status access-status--${vault.status ?? "noAccess"}`}>
-                      {t(vault.status ?? "noAccess")}
-                    </span>
-                  </p>
+                  <div className="org-vault-header">
+                    <VaultIcon />
+                    <h3 className="org-heading">{vault.name}</h3>
+                    <p className="vault-meta org-your-access">
+                      {t("yourAccess")}: {" "}
+                      <span className={`access-status access-status--${vault.status ?? "noAccess"}`}>
+                        {t(vault.status ?? "noAccess")}
+                      </span>
+                    </p>
+                  </div>
                   {vault.shared && !organization.sharing.enabled && (
                     <p className="org-warning">{t("suspended")}</p>
                   )}
-                  {vault.members.map((member) => (
-                    <div
-                      key={member.userId ?? member.email}
-                      className="org-row"
-                    >
-                      <div className="org-person">
-                        {member.email}
+                  <div className="org-rows">
+                    {vault.members.map((member) => (
+                      <div
+                        key={member.userId ?? member.email}
+                        className="org-row"
+                      >
+                        <div className="org-person">
+                          {member.email}
+                        </div>
+                        <span className={`access-status access-status--${member.status}`}>
+                          {t(member.status)}
+                        </span>
                       </div>
-                      <span className={`access-status access-status--${member.status}`}>
-                        {t(member.status)}
-                      </span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </section>
               ))}
               {!organization.vaults.length && (
-                <p className="org-panel">{t("noVaults")}</p>
+                <div className="management-empty">
+                  <VaultIcon />
+                  <p>{t("noVaults")}</p>
+                </div>
               )}
             </section>
             {organization.role !== "owner" && user && (
@@ -412,42 +420,43 @@ function Members({ organization, busy, pendingAction, feedbackFor, t, perform, a
         <h2 className="org-heading">{t("members")}</h2>
         <span className="org-count">{organization.members.length}</span>
       </div>
-      {organization.members.map((member) => (
-        <div key={member.id} className="org-row">
-          <div className="org-person">
-            <span className="person-avatar" aria-hidden="true">
-              {(member.name || member.email).slice(0, 1).toUpperCase()}
-            </span>
-            <div className="org-person-info">
-              <span className="org-person-name">{member.name}</span>
-              <span className="vault-meta">{member.email}</span>
+      <div className="org-rows">
+        {organization.members.map((member) => (
+          <div key={member.id} className="org-row">
+            <div className="org-person">
+              <span className="person-avatar" aria-hidden="true">
+                {(member.name || member.email).slice(0, 1).toUpperCase()}
+              </span>
+              <div className="org-person-info">
+                <span className="org-person-name">{member.name}</span>
+                <span className="vault-meta">{member.email}</span>
+              </div>
             </div>
-          </div>
-          <div className="org-member-actions" aria-busy={pendingAction === `role:${member.id}`}>
-            {pendingAction === `role:${member.id}` && <span className="loading-spinner" aria-hidden="true" />}
-            {member.role === "owner" || organization.role !== "owner" ? (
-              <span className="org-role">{t(member.role)}</span>
-            ) : (
-              <select
-                aria-label={t("role")}
-                className="input"
-                disabled={busy}
-                value={member.role}
-                onChange={(event) => {
-                  const role = event.target.value;
-                  void perform(() =>
-                    api(`/members/${encodeURIComponent(member.id)}`, "PATCH", {
-                      role,
-                    }),
-                    `role:${member.id}`,
-                  );
-                }}
-              >
-                {(["member", "admin"] as const).map((role) => (
-                  <option key={role} value={role}>
-                    {t(role)}
-                  </option>
-                ))}
+            <div className="org-member-actions" aria-busy={pendingAction === `role:${member.id}`}>
+              {pendingAction === `role:${member.id}` && <span className="loading-spinner" aria-hidden="true" />}
+              {member.role === "owner" || organization.role !== "owner" ? (
+                <span className="org-role">{t(member.role)}</span>
+              ) : (
+                <select
+                  aria-label={t("role")}
+                  className="input"
+                  disabled={busy}
+                  value={member.role}
+                  onChange={(event) => {
+                    const role = event.target.value;
+                    void perform(() =>
+                      api(`/members/${encodeURIComponent(member.id)}`, "PATCH", {
+                        role,
+                      }),
+                      `role:${member.id}`,
+                    );
+                  }}
+                >
+                  {(["member", "admin"] as const).map((role) => (
+                    <option key={role} value={role}>
+                      {t(role)}
+                    </option>
+                  ))}
               </select>
             )}
             {member.role !== "owner" &&
@@ -473,6 +482,7 @@ function Members({ organization, busy, pendingAction, feedbackFor, t, perform, a
           </div>
         </div>
       ))}
+      </div>
       {feedbackFor("role")}
       {feedbackFor("remove")}
     </section>
@@ -513,9 +523,13 @@ function Invitations({
   }
   return (
     <section className="org-panel org-invitations">
+      <div className="org-panel-heading">
+        <h2 className="org-heading">{t("invitations")}</h2>
+        <span className="org-count">{pending.length}</span>
+      </div>
       {organization.sharing.enabled && (
         <div className="org-invite-form">
-          <h2 className="org-heading">{t("invite")}</h2>
+          <h3 className="org-list-title">{t("invite")}</h3>
           <form className="org-form" onSubmit={submit}>
             <Field label={t("email")}>
               <input
@@ -561,53 +575,54 @@ function Invitations({
           />
         </div>
       )}
-      {pending.length > 0 && (
-        <h3 className="org-list-title">{t("invitations")}</h3>
-      )}
-      {pending.map((invitation) => {
-        const expired = new Date(invitation.expiresAt).getTime() <= Date.now();
-        return (
-          <div key={invitation.id} className="org-row">
-            <span className="org-person">
-              {invitation.email}
-              <span className="access-status">
-                {t(expired ? "expired" : "pending")}
+      <div className="org-rows">
+        {pending.map((invitation) => {
+          const expired = new Date(invitation.expiresAt).getTime() <= Date.now();
+          return (
+            <div key={invitation.id} className="org-row">
+              <span className="org-person">
+                {invitation.email}
+                <span className={`access-status ${expired ? "access-status--expired" : "access-status--pending_key"}`}>
+                  {t(expired ? "expired" : "pending")}
+                </span>
               </span>
-            </span>
-            {!expired && organization.sharing.enabled && (
-              <ActionButton
-                pending={pendingAction === `resend:${invitation.id}`}
-                busy={busy}
-                onClick={() =>
-                  void perform(() =>
-                    send(
-                      `/invitations/${encodeURIComponent(invitation.id)}/resend`,
-                    ),
-                    `resend:${invitation.id}`,
-                  )
-                }
-              >
-                {t("resend")}
-              </ActionButton>
-            )}
-            <ActionButton
-              pending={pendingAction === `cancel:${invitation.id}`}
-              busy={busy}
-              onClick={() =>
-                void perform(() =>
-                  api(
-                    `/invitations/${encodeURIComponent(invitation.id)}/cancel`,
-                    "POST",
-                  ),
-                  `cancel:${invitation.id}`,
-                )
-              }
-            >
-              {t("cancel")}
-            </ActionButton>
-          </div>
-        );
-      })}
+              <div className="org-member-actions">
+                {!expired && organization.sharing.enabled && (
+                  <ActionButton
+                    pending={pendingAction === `resend:${invitation.id}`}
+                    busy={busy}
+                    onClick={() =>
+                      void perform(() =>
+                        send(
+                          `/invitations/${encodeURIComponent(invitation.id)}/resend`,
+                        ),
+                        `resend:${invitation.id}`,
+                      )
+                    }
+                  >
+                    {t("resend")}
+                  </ActionButton>
+                )}
+                <ActionButton
+                  pending={pendingAction === `cancel:${invitation.id}`}
+                  busy={busy}
+                  onClick={() =>
+                    void perform(() =>
+                      api(
+                        `/invitations/${encodeURIComponent(invitation.id)}/cancel`,
+                        "POST",
+                      ),
+                      `cancel:${invitation.id}`,
+                    )
+                  }
+                >
+                  {t("cancel")}
+                </ActionButton>
+              </div>
+            </div>
+          );
+        })}
+      </div>
       {feedbackFor("resend")}
       {feedbackFor("cancel")}
     </section>

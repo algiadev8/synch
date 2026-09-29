@@ -27,6 +27,7 @@ export const DeletionStates: Story = {
         json("/v1/vaults", {
           vaults: [
             { ...vaults[0], deletionStatus: "queued" },
+            { ...vaults[0], id: "running", name: "Old archive", deletionStatus: "running" },
             {
               ...vaults[1],
               deletionStatus: "failed",
@@ -51,4 +52,19 @@ export const DeleteDialog: Story = {
     await canvas.findByText("Personal notes");
     await userEvent.click(canvas.getAllByRole("button", { name: "Delete" })[0]);
   },
+};
+
+export const NoManagedOrganization: Story = {
+  parameters: { msw: { handlers: [json("/v1/organizations", {
+    organizations: [{ id: "member-only", name: "Shared team", role: "member" }],
+  })] } },
+};
+export const LongNames: Story = {
+  parameters: { msw: { handlers: [json("/v1/vaults", {
+    vaults: [{ ...vaults[0], name: "Research-archive-and-shared-project-documentation-with-a-very-long-unbroken-name" }],
+  })] } },
+};
+export const Mobile: Story = {
+  ...DeletionStates,
+  globals: { viewport: { value: "mobile", isRotated: false } },
 };

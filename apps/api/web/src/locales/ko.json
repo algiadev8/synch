@@ -85,6 +85,8 @@
     "requestFailed": "요청에 실패했습니다."
   },
   "vaults": {
+    "noManagedOrganization": "관리할 수 있는 조직이 없습니다",
+    "noManagedOrganizationHelp": "조직 소유자와 관리자만 vault를 관리할 수 있습니다. 멤버라면 Obsidian에서 공유 vault에 연결하세요.",
     "refreshFailed": "최신 vault 목록을 불러오지 못했습니다. 새로고침 후 계속하세요.",
     "title": "원격 vault",
     "subtitle": "이 Synch 계정에 연결된 암호화 vault를 관리합니다. 원격 vault를 삭제해도 로컬 Obsidian 파일은 삭제되지 않습니다.",

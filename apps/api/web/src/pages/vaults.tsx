@@ -1,3 +1,4 @@
+import { VaultIcon } from "../components/vault-icon";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Brand, BusyButton, LoadingSkeleton, Status, type StatusValue } from "../components/common";
 import {
@@ -275,12 +276,13 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
         <section id="vault-list" className="vault-list" aria-busy={loading}>
           {showSkeleton && <LoadingSkeleton />}
           {!showSkeleton && vaults.map((vault) => (
-            <article key={vault.id} className="vault-card">
+            <article key={vault.id} className={`vault-card${vault.deletionStatus === "failed" ? " vault-card--failed" : ""}`}>
+              <VaultIcon />
               <div className="vault-info">
                 <h2 className="vault-name">{vault.name}</h2>
                 <p className="vault-meta">{createdDate(vault)}</p>
                 {vault.deletionStatus && (
-                  <p className="vault-deletion-status">
+                  <p className={`vault-deletion-status access-status ${vault.deletionStatus === "failed" ? "access-status--revoked" : "access-status--pending_key"}`}>
                     {t("deletionStatus", { status: vault.deletionStatus })}
                   </p>
                 )}
@@ -303,7 +305,13 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
         </section>
         {loaded && !showSkeleton && !vaults.length && (
           <section id="empty-guide">
-            <EmptyGuide t={t} />
+            {organization ? <EmptyGuide t={t} /> : (
+              <div className="management-empty">
+                <VaultIcon />
+                <h2 className="empty-guide-title">{t("noManagedOrganization")}</h2>
+                <p>{t("noManagedOrganizationHelp")}</p>
+              </div>
+            )}
           </section>
         )}
       </main>

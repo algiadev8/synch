@@ -85,6 +85,8 @@
     "requestFailed": "Request failed."
   },
   "vaults": {
+    "noManagedOrganization": "No organizations to manage",
+    "noManagedOrganizationHelp": "Vault management is available to organization owners and administrators. If you are a member, connect to your shared vaults in Obsidian.",
     "refreshFailed": "The latest vault list could not be loaded. Refresh to continue.",
     "title": "Remote vaults",
     "organization": "Organization",

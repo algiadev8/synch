@@ -531,3 +531,15 @@ it("retries only the read after an invitation succeeds but refreshing fails", as
   expect((screen.getByLabelText("Invitation link") as HTMLInputElement).value).toContain("invitationId=created");
   expect(detailRequests).toBe(3);
 });
+
+
+it("shows member guidance instead of creation instructions without management access", async () => {
+  fetchMock.mockImplementation(async input => String(input).includes("get-session")
+    ? json(session)
+    : json({ organizations: [{ ...organization, role: "member" }] }));
+  render(<VaultsPage t={await translator("vaults", "en")} locale="en" />);
+  await screen.findByRole("heading", { name: "No organizations to manage" });
+  expect(screen.queryByText("How to start syncing")).toBeNull();
+  expect((screen.getByRole("button", { name: "Create vault" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("/v1/vaults"))).toBe(false);
+});
