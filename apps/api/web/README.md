@@ -134,3 +134,34 @@ Google and GitHub authorization requests and token exchanges use
 with the providers, regardless of which route starts sign-in. When upgrading from
 `/api/auth/callback/...`, update the provider's registered callback URL as well.
 The legacy routes, existing clients, and email verification links remain available.
+
+## Storybook: manual visual review
+
+```sh
+pnpm -C apps/api storybook             # http://localhost:6006
+pnpm -C apps/api build:storybook       # apps/api/storybook-static
+pnpm -C apps/api typecheck:storybook
+```
+
+The six English pages use the production React components and stylesheet.
+Choose a state in the sidebar (loading, error, empty, verification, device
+approval, invitations, organization roles, or vault dialogs). The viewport
+menu offers Desktop (1440 × 900) and Mobile (390 × 844). Open the addon panel
+from the toolbar to inspect story interactions.
+
+Stories live in `web/stories`; config and the generated MSW worker live in
+`.storybook`. MSW intercepts API requests before rendering, including a fallback
+that rejects unmocked API actions. No API process, database, account, or secrets
+are needed. Form errors and verification states use `play` to exercise the real
+form; vault dialogs retain the production browser-only crypto implementation.
+Use example credentials only. Navigation links still represent the real app
+routes; select another story through the sidebar rather than navigating through
+the preview. Use Reload story to reset a scenario.
+
+This is a manual preview catalog, not a screenshot regression suite. The mock
+worker is served only by Storybook and is not copied to the API's public build.
+When upgrading MSW, regenerate it with
+`pnpm -C apps/api exec msw init .storybook/public --save`.
+
+The Astro website has its own Storybook at port 6007; see
+[`apps/www/stories/README.md`](../../www/stories/README.md).
