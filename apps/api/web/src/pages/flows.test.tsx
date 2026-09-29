@@ -297,15 +297,19 @@ describe("vault safety", () => {
     await user.click(button);
     await waitFor(() => expect(success).toHaveBeenCalledWith("My Vault"));
   });
-  it("only lists vaults in the selected organization and disables queued deletions", async () => {
+  it("lists all managed organizations and disables queued deletions", async () => {
+    const other = { ...organization, id: "org-2", name: "Second organization", role: "admin" };
+    const member = { ...organization, id: "org-3", role: "member" };
     fetchMock.mockImplementation(async (input) => {
       const url = String(input);
       if (url.includes("get-session")) return json(session);
       if (url === "/v1/organizations")
-        return json({ organizations: [organization] });
+        return json({ organizations: [organization, other, member] });
+      if (url.endsWith("org-2")) return json(other);
       if (url.includes("/v1/organizations/")) return json(organization);
       return json({
         vaults: [
+          { id: "v3", name: "Member vault", organizationId: "org-3", createdAt: "2026-01-01" },
           {
             id: "v1",
             name: "Visible",
@@ -324,11 +328,30 @@ describe("vault safety", () => {
     });
     render(<VaultsPage t={await translator("vaults", "en")} locale="en" />);
     await screen.findByText("Visible");
-    expect(screen.queryByText("Other organization")).toBeNull();
+    expect(screen.getByText("Other organization")).toBeTruthy();
+    expect(screen.queryByText("Member vault")).toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(within(screen.getByRole("region", { name: "Second organization" })).getByText("Other organization")).toBeTruthy();
     expect(
       (screen.getByRole("button", { name: "Deleting" }) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
+    cryptoMock.createPasswordWrappedRemoteVaultKey.mockResolvedValue({
+      envelope: { version: 1 }, remoteVaultKey: new Uint8Array([1, 2, 3]),
+    });
+    await userEvent.click(within(screen.getByRole("region", { name: "Second organization" })).getByRole("button", { name: "Create vault" }));
+    const dialog = within(screen.getByRole("dialog"));
+    await userEvent.type(dialog.getByLabelText("Vault name"), "New team vault");
+    await userEvent.type(dialog.getByLabelText("Vault password"), "secret-vault-passphrase");
+    await userEvent.type(dialog.getByLabelText("Confirm vault password"), "secret-vault-passphrase");
+    await userEvent.click(dialog.getByRole("button", { name: "Create vault" }));
+    await waitFor(() => {
+      const creation = fetchMock.mock.calls.find(([url, init]) => url === "/v1/vaults" && init?.method === "POST");
+      expect(creation).toBeTruthy();
+      expect(JSON.parse(String(creation![1]?.body)).organizationId).toBe("org-2");
+    });
+    await screen.findByRole("dialog", { name: "Connect “New team vault” in Obsidian" });
+    expect(screen.getByText(/select “New team vault”/)).toBeTruthy();
   });
 });
 
@@ -437,27 +460,31 @@ describe("management loading feedback", () => {
     return { promise, resolve };
   }
 
-  it("keeps vaults visible during refresh and recovers after an error", async () => {
-    const refresh = deferredResponse();
-    let refreshing = false;
+  it("offers retry only after a vault loading error", async () => {
+    const retry = deferredResponse();
+    let failed = false;
     fetchMock.mockImplementation(async (input) => {
       const url = String(input);
       if (url.includes("get-session")) return json(session);
-      if (url === "/v1/organizations") return refreshing ? refresh.promise : json({ organizations: [organization] });
+      if (url === "/v1/organizations") {
+        if (!failed) {
+          failed = true;
+          return json({ message: "Connection interrupted" }, 503);
+        }
+        return retry.promise;
+      }
       if (url.startsWith("/v1/organizations/")) return json(organization);
       return json({ vaults: [{ id: "v1", name: "My notes", organizationId: "org-1", createdAt: "2026-01-01" }] });
     });
     render(<VaultsPage t={await translator("vaults", "en")} locale="en" />);
-    await screen.findByText("My notes");
-    refreshing = true;
-    await userEvent.click(screen.getByRole("button", { name: "Refresh" }));
-    expect(screen.getByText("My notes")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Refresh" }).getAttribute("aria-busy")).toBe("true");
-    expect((screen.getByRole("button", { name: "Delete" }) as HTMLButtonElement).disabled).toBe(true);
-    await act(async () => refresh.resolve(json({ message: "Connection interrupted" }, 503)));
     await screen.findByText("Connection interrupted");
-    expect(screen.getByText("My notes")).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Refresh" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    await act(async () => retry.resolve(json({ organizations: [organization] })));
+    await screen.findByText("My notes");
+    expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
   });
 
   it("restores the selected organization after a failed switch", async () => {
@@ -540,6 +567,29 @@ it("shows member guidance instead of creation instructions without management ac
   render(<VaultsPage t={await translator("vaults", "en")} locale="en" />);
   await screen.findByRole("heading", { name: "No organizations to manage" });
   expect(screen.queryByText("How to start syncing")).toBeNull();
-  expect((screen.getByRole("button", { name: "Create vault" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole("button", { name: "Create vault" })).toBeNull();
   expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("/v1/vaults"))).toBe(false);
+});
+
+it("guides first-time users into Obsidian and refreshes the list on return", async () => {
+  let pluginCreatedVault = false;
+  fetchMock.mockImplementation(async (input) => {
+    const url = String(input);
+    if (url.includes("get-session")) return json(session);
+    if (url === "/v1/organizations") return json({ organizations: [organization] });
+    if (url.startsWith("/v1/organizations/")) return json(organization);
+    return json({ vaults: pluginCreatedVault ? [{ id: "v1", name: "From Obsidian", organizationId: "org-1", createdAt: "2026-01-01" }] : [] });
+  });
+  render(<VaultsPage t={await translator("vaults", "en")} locale="en" />);
+  await screen.findByRole("heading", { name: "Start syncing your Obsidian vault" });
+  expect(screen.getByRole("link", { name: "Get Synch for Obsidian" }).getAttribute("href")).toBe("https://community.obsidian.md/plugins/synch");
+  expect(screen.getByRole("link", { name: "Already installed? Open Synch settings" }).getAttribute("href")).toBe("obsidian://synch-device-login");
+  expect(screen.getByText(/sign in with owner@example.com/)).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Create on the web instead" })).toBeNull();
+  expect(screen.queryByRole("region", { name: "My organization" })).toBeNull();
+  pluginCreatedVault = true;
+  fireEvent.focus(window);
+  await screen.findByText("From Obsidian");
+  expect(screen.queryByRole("heading", { name: "Start syncing your Obsidian vault" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Connect in Obsidian" })).toBeNull();
 });

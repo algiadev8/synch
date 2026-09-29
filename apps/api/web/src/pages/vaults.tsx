@@ -1,6 +1,8 @@
-import { VaultIcon } from "../components/vault-icon";
+import { VaultSetup } from "../components/vault-setup";
+import { AccountMenu } from "../components/account-menu";
+import { ManagementHeader } from "../components/management-header";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Brand, BusyButton, LoadingSkeleton, Status, type StatusValue } from "../components/common";
+import { Brand, LoadingSkeleton, Modal, Status, type StatusValue } from "../components/common";
 import {
   CreateVaultDialog,
   DeleteVaultDialog,
@@ -14,7 +16,7 @@ import {
   type Organization,
   type OrganizationSummary,
 } from "../lib/organizations";
-import type { PageProps, Translator } from "../lib/i18n";
+import type { PageProps } from "../lib/i18n";
 
 export interface Vault {
   id: string;
@@ -29,23 +31,16 @@ const isDeleting = (vault: Vault) =>
 export function VaultsPage({ t, locale }: PageProps<"vaults">) {
   const [user, setUser] = useState<User | null>(null);
   const [organizations, setOrganizations] = useState<OrganizationSummary[]>([]);
-  const [organization, setOrganization] = useState<Organization | null>(null);
-  const [selectedId, setSelectedId] = useState(
-    () => new URLSearchParams(location.search).get("organizationId") ?? "",
-  );
-  const selectedRef = useRef(selectedId);
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
-  const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [refreshRequired, setRefreshRequired] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState<StatusValue>({ message: t("loading") });
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState<OrganizationSummary | null>(null);
   const [deleting, setDeleting] = useState<Vault | null>(null);
+  const [connecting, setConnecting] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
-  const organizationRef = useRef(organization);
-  organizationRef.current = organization;
   const activeRequest = useRef<AbortController | null>(null);
   const loadVaults = useCallback(
     async (successMessage?: string, background = false) => {
@@ -57,7 +52,6 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
         signal: controller.signal,
       };
       setLoading(true);
-      setBackgroundLoading(background);
       if (!background) setStatus({ message: t("loading") });
       try {
         const result = await request<{ organizations: OrganizationSummary[] }>(
@@ -67,34 +61,22 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
         if (controller.signal.aborted) return;
         const visible = result.organizations.filter(canManage);
 
-        const id =
-          visible.find((item) => item.id === selectedRef.current)?.id ??
-          visible[0]?.id ??
-          "";
-        selectedRef.current = id;
-        setSelectedId(id);
+        const details = await Promise.all(
+          visible.map((item) => request<Organization>(organizationPath(item.id), options)),
+        );
+        if (controller.signal.aborted) return;
+        const managed = details.filter(canManage);
         let items: Vault[] = [];
-        let nextOrganization: Organization | null = null;
-        if (id) {
-          const detail = await request<Organization>(
-            organizationPath(id),
+        if (managed.length > 0) {
+          const result = await request<{ vaults: Vault[] }>(
+            "/v1/vaults?includeDeleting=true",
             options,
           );
           if (controller.signal.aborted) return;
-          if (canManage(detail)) {
-            const result = await request<{ vaults: Vault[] }>(
-              "/v1/vaults?includeDeleting=true",
-              options,
-            );
-            if (controller.signal.aborted) return;
-            nextOrganization = detail;
-            items = result.vaults.filter(
-              (vault) => vault.organizationId === id,
-            );
-          }
+          const managedIds = new Set(managed.map((item) => item.id));
+          items = result.vaults.filter((vault) => managedIds.has(vault.organizationId));
         }
-        setOrganizations(nextOrganization ? visible : []);
-        setOrganization(nextOrganization);
+        setOrganizations(managed);
         setVaults(items);
         setLoaded(true);
         setRefreshRequired(false);
@@ -107,8 +89,6 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
         });
       } catch (error) {
         if (!controller.signal.aborted) {
-          setSelectedId(organizationRef.current?.id ?? "");
-          selectedRef.current = organizationRef.current?.id ?? "";
           if (successMessage) setRefreshRequired(true);
           setStatus({
             message:
@@ -150,10 +130,17 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
     };
   }, [t, locale, loadVaults, retry]);
   useEffect(() => {
-    if (loading || creating || deleting || !vaults.some(isDeleting)) return;
+    if (loading || creating || deleting || connecting !== null || !vaults.some(isDeleting)) return;
     const timer = setTimeout(() => void loadVaults(undefined, true), 2500);
     return () => clearTimeout(timer);
-  }, [vaults, loading, creating, deleting, loadVaults]);
+  }, [vaults, loading, creating, deleting, connecting, loadVaults]);
+  useEffect(() => {
+    // Returning from Obsidian can add a vault created in the plugin.
+    if (!loaded || loading || creating || deleting || connecting !== null) return;
+    const refreshOnReturn = () => void loadVaults(undefined, true);
+    window.addEventListener("focus", refreshOnReturn);
+    return () => window.removeEventListener("focus", refreshOnReturn);
+  }, [loaded, loading, creating, deleting, connecting, loadVaults]);
   async function logout() {
     if (loggingOut) return;
     setLoggingOut(true);
@@ -169,8 +156,8 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
       setLoggingOut(false);
     }
   }
-  const switching = Boolean(organization && selectedId !== organization.id);
-  const showSkeleton = loading && (!loaded || switching);
+  const firstVault = loaded && organizations.length > 0 && vaults.length === 0;
+  const showSkeleton = loading && !loaded;
   function createdDate(vault: Vault) {
     const date = new Date(vault.createdAt);
     const formatted = Number.isNaN(date.getTime())
@@ -188,143 +175,117 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
         <div className="topbar management-topbar">
           <Brand />
           {user && (
-            <div id="user-container" className="user-area">
-              <div id="user" className="user-badge">
-                {user.email || user.name || t("signedIn")}
-              </div>
-              <BusyButton
-                busy={loggingOut}
-                id="logout"
-                type="button"
-                className="signout-button"
-                disabled={loggingOut}
-                onClick={() => void logout()}
-              >
-                {t("signOut")}
-              </BusyButton>
-            </div>
+            <AccountMenu user={user} t={t} busy={loggingOut} onSignOut={() => void logout()} />
           )}
         </div>
-        <header className="vaults-header">
-          <div>
-            <h1 className="page-title">{t("title")}</h1>
-            <p className="vaults-subtitle">{t("subtitle")}</p>
-          </div>
-        </header>
-        {organizations.length > 0 && (
-          <div id="organization-toolbar" className="org-toolbar">
-            <label htmlFor="organization" className="label">
-              {t("organization")}
-            </label>
-            <select
-              id="organization"
-              className="input"
-              disabled={loading || creating || Boolean(deleting)}
-              value={selectedId}
-              onChange={(event) => {
-                selectedRef.current = event.target.value;
-                setSelectedId(event.target.value);
-                void loadVaults();
-              }}
-            >
-              {organizations.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-            {organization && (
-              <a
-                id="organizations-link"
+        <ManagementHeader title={t(firstVault ? "setupTitle" : "title")} subtitle={t(firstVault ? "setupIntro" : "subtitle")}>
+          <div className="management-header-feedback">
+            {(!firstVault || status.tone || loading) && <Status {...status} className="status--bar" />}
+            {status.tone === "error" && !loading && (
+              <button
+                type="button"
                 className="management-link"
-                href={localUrl("/organizations", locale, {
-                  organizationId: organization.id,
-                })}
+                onClick={() => user ? void loadVaults() : setRetry((value) => value + 1)}
               >
-                {t("organizations")}
-              </a>
+                {t("retry")}
+              </button>
             )}
           </div>
-        )}
-        <div className="vaults-toolbar">
-          <Status {...status} className="status--bar" />
-          <div className="vaults-actions">
-            <BusyButton
-              busy={loading && !backgroundLoading}
-              id="refresh"
-              type="button"
-              className="btn btn--secondary btn--compact btn--fluid"
-              disabled={loading}
-              onClick={() => user ? void loadVaults() : setRetry((value) => value + 1)}
-            >
-              {t("refresh")}
-            </BusyButton>
-            <button
-              id="create-vault"
-              type="button"
-              className="btn btn--primary btn--compact btn--fluid"
-              disabled={loading || refreshRequired || !canManage(organization)}
-              onClick={() => {
-                setCreating(true);
-                void loadVaultCrypto().catch(() => {});
-              }}
-            >
-              {t("createVault")}
-            </button>
-          </div>
-        </div>
-        <section id="vault-list" className="vault-list" aria-busy={loading}>
+        </ManagementHeader>
+        {firstVault && <VaultSetup t={t} email={user?.email ?? ""} />}
+        {!firstVault && <section id="vault-list" className="vault-list" aria-busy={loading}>
           {showSkeleton && <LoadingSkeleton />}
-          {!showSkeleton && vaults.map((vault) => (
-            <article key={vault.id} className={`vault-card${vault.deletionStatus === "failed" ? " vault-card--failed" : ""}`}>
-              <VaultIcon />
-              <div className="vault-info">
-                <h2 className="vault-name">{vault.name}</h2>
-                <p className="vault-meta">{createdDate(vault)}</p>
-                {vault.deletionStatus && (
-                  <p className={`vault-deletion-status access-status ${vault.deletionStatus === "failed" ? "access-status--revoked" : "access-status--pending_key"}`}>
-                    {t("deletionStatus", { status: vault.deletionStatus })}
-                  </p>
-                )}
-                {vault.deletionError && (
-                  <p className="form-error">{vault.deletionError}</p>
-                )}
-              </div>
-              {canManage(organization) && (
-                <button
-                  type="button"
-                  className="btn btn--danger btn--compact vault-delete"
-                  disabled={loading || refreshRequired || isDeleting(vault)}
-                  onClick={() => setDeleting(vault)}
-                >
-                  {t(isDeleting(vault) ? "deleting" : "delete")}
-                </button>
-              )}
-            </article>
-          ))}
-        </section>
-        {loaded && !showSkeleton && !vaults.length && (
-          <section id="empty-guide">
-            {organization ? <EmptyGuide t={t} /> : (
-              <div className="management-empty">
-                <VaultIcon />
-                <h2 className="empty-guide-title">{t("noManagedOrganization")}</h2>
-                <p>{t("noManagedOrganizationHelp")}</p>
-              </div>
-            )}
-          </section>
+          {!showSkeleton && organizations.map((organization) => {
+            const organizationVaults = vaults.filter((vault) => vault.organizationId === organization.id);
+            return (
+              <section key={organization.id} className="vault-organization" aria-labelledby={`organization-${organization.id}`}>
+                <div className="vault-organization-header">
+                  <h2 id={`organization-${organization.id}`} className="vault-organization-name">
+                    <a className="vault-organization-link" href={localUrl("/organizations", locale, { organizationId: organization.id })}>
+                      <span>{organization.name}</span>
+                      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M7 17 17 7M7 7h10v10" />
+                      </svg>
+                    </a>
+                  </h2>
+                  <div className="vault-organization-actions">
+                    <button
+                      id={`create-vault-${organization.id}`}
+                      type="button"
+                      className="btn btn--primary btn--compact"
+                      disabled={loading || refreshRequired || !canManage(organization)}
+                      onClick={() => {
+                        setCreating(organization);
+                        void loadVaultCrypto().catch(() => {});
+                      }}
+                    >
+                      {t("createVault")}
+                    </button>
+                  </div>
+                </div>
+                <div className="vault-list">
+                  {organizationVaults.map((vault) => (
+                    <article key={vault.id} className={`vault-card${vault.deletionStatus === "failed" ? " vault-card--failed" : ""}`}>
+                      <div className="vault-info">
+                        <h3 className="vault-name">{vault.name}</h3>
+                        <p className="vault-meta">{createdDate(vault)}</p>
+                        {vault.deletionStatus && (
+                          <p className={`vault-deletion-status access-status ${vault.deletionStatus === "failed" ? "access-status--revoked" : "access-status--pending_key"}`}>
+                            {t("deletionStatus", { status: vault.deletionStatus })}
+                          </p>
+                        )}
+                        {vault.deletionError && (
+                          <p className="form-error">{vault.deletionError}</p>
+                        )}
+                      </div>
+                      {canManage(organization) && (
+                        <button
+                          type="button"
+                          className="btn btn--danger btn--compact vault-delete"
+                          disabled={loading || refreshRequired || isDeleting(vault)}
+                          onClick={() => setDeleting(vault)}
+                        >
+                          {t(isDeleting(vault) ? "deleting" : "delete")}
+                        </button>
+                      )}
+                    </article>
+                  ))}
+                  {!organizationVaults.length && <p className="vault-organization-empty">{t("emptyOrganization")}</p>}
+                </div>
+              </section>
+            );
+          })}
+        </section>}
+        {loaded && !showSkeleton && !organizations.length && (
+          <div className="vaults-access-empty">
+            <h2 className="empty-guide-title">{t("noManagedOrganization")}</h2>
+            <p>{t("noManagedOrganizationHelp")}</p>
+          </div>
         )}
       </main>
-      {creating && organization && (
+      {creating && (
         <CreateVaultDialog
           t={t}
-          organizationId={organization.id}
-          onClose={() => setCreating(false)}
+          organizationId={creating.id}
+          onClose={() => setCreating(null)}
           onSuccess={(name) => {
-            setCreating(false);
+            setCreating(null);
+            setConnecting(name);
             void loadVaults(t("createdVault", { name }));
           }}
         />
+      )}
+      {connecting !== null && (
+        <Modal id="connect-guide" busy={false} title={t("setupConnectTitle", { name: connecting })} onClose={() => setConnecting(null)}>
+          <div className="dialog-body">
+            <h2 className="dialog-title">{t("setupConnectTitle", { name: connecting })}</h2>
+            <p className="vault-setup-intro">{t("setupConnectIntro")}</p>
+            <VaultSetup t={t} email={user?.email ?? ""} vaultName={connecting} />
+          </div>
+          <div className="dialog-footer">
+            <button type="button" className="btn btn--secondary btn--compact" onClick={() => setConnecting(null)}>{t("setupClose")}</button>
+          </div>
+        </Modal>
       )}
       {deleting && (
         <DeleteVaultDialog
@@ -338,34 +299,5 @@ export function VaultsPage({ t, locale }: PageProps<"vaults">) {
         />
       )}
     </>
-  );
-}
-function EmptyGuide({ t }: { t: Translator<"vaults"> }) {
-  const steps = [
-    ["emptyGuideInstallTitle", "emptyGuideInstallBody"],
-    ["emptyGuideSignInTitle", "emptyGuideSignInBody"],
-    ["emptyGuideCreateTitle", "emptyGuideCreateBody"],
-    ["emptyGuidePasswordTitle", "emptyGuidePasswordBody"],
-    ["emptyGuideDeviceTitle", "emptyGuideDeviceBody"],
-  ] as const;
-  return (
-    <section className="empty-guide">
-      <div className="empty-guide-header">
-        <p className="empty-guide-eyebrow">{t("empty")}</p>
-        <h2 className="empty-guide-title">{t("emptyGuideTitle")}</h2>
-        <p className="empty-guide-intro">{t("emptyGuideIntro")}</p>
-      </div>
-      <ol className="empty-guide-steps">
-        {steps.map(([title, body], index) => (
-          <li key={title} className="empty-guide-step">
-            <div className="step-marker">{index + 1}</div>
-            <div className="step-content">
-              <h3 className="step-title">{t(title)}</h3>
-              <p className="step-body">{t(body)}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
-    </section>
   );
 }

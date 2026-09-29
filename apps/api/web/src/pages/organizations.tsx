@@ -1,4 +1,4 @@
-import { VaultIcon } from "../components/vault-icon";
+import { ManagementHeader } from "../components/management-header";
 import {
   useEffect,
   useRef,
@@ -211,17 +211,14 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
           {t("vaults")}
         </a>
       </div>
-      <header id="organization-header" className="vaults-header">
-        <div>
-          <p className="page-eyebrow">{t("organization")}</p>
-          <h1 className="page-title">
-            {(pendingAction === "switch"
-              ? organizations.find((item) => item.id === selectedId)?.name
-              : organization?.name) ?? t("title")}
-          </h1>
-          <p className="vaults-subtitle">{t("subtitle")}</p>
-        </div>
-      </header>
+      <ManagementHeader
+        id="organization-header"
+        eyebrow={t("organization")}
+        title={(pendingAction === "switch"
+          ? organizations.find((item) => item.id === selectedId)?.name
+          : organization?.name) ?? t("title")}
+        subtitle={t("subtitle")}
+      />
       {organizations.length > 1 && (
         <div id="organization-toolbar" className="org-toolbar">
           <label htmlFor="organization" className="label">
@@ -326,7 +323,6 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
               {organization.vaults.map((vault) => (
                 <section key={vault.id} className="org-panel org-vault">
                   <div className="org-vault-header">
-                    <VaultIcon />
                     <h3 className="org-heading">{vault.name}</h3>
                     <p className="vault-meta org-your-access">
                       {t("yourAccess")}: {" "}
@@ -357,7 +353,6 @@ export function OrganizationsPage({ t, locale }: PageProps<"organizations">) {
               ))}
               {!organization.vaults.length && (
                 <div className="management-empty">
-                  <VaultIcon />
                   <p>{t("noVaults")}</p>
                 </div>
               )}
