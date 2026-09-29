@@ -54,8 +54,8 @@ export function createBetterAuth(db: AppDb, config: BetterAuthConfig) {
 	const allowedEmails = parseAllowedEmails(config.allowedEmails);
 	const auth = betterAuth({
 		socialProviders: {
-			google: optionalOAuthCredentials(config.googleClientId, config.googleClientSecret),
-			github: optionalOAuthCredentials(config.githubClientId, config.githubClientSecret),
+			google: optionalOAuthProvider(config.baseURL, "google", config.googleClientId, config.googleClientSecret),
+			github: optionalOAuthProvider(config.baseURL, "github", config.githubClientId, config.githubClientSecret),
 		},
 		user: {
 			validateUserInfo: ({ user, source }) => {
@@ -284,8 +284,13 @@ function getDeviceVerificationUri(baseURL: string): string {
 	return new URL("/device", baseURL).toString();
 }
 
-function optionalOAuthCredentials(id?: string, secret?: string) {
+function optionalOAuthProvider(baseURL: string, provider: "google" | "github", id?: string, secret?: string) {
 	const clientId = id?.trim();
 	const clientSecret = secret?.trim();
-	return clientId && clientSecret ? { clientId, clientSecret } : undefined;
+	return clientId && clientSecret ? {
+		clientId,
+		clientSecret,
+		// Used for both the authorization request and the token exchange.
+		redirectURI: new URL(`/v1/auth/callback/${provider}`, baseURL).toString(),
+	} : undefined;
 }

@@ -79,7 +79,11 @@ async function completeOAuth(
     sub: "google-user", email, email_verified: emailVerified, name: "Google User",
     aud: "client", iss: "https://accounts.google.com", exp: Math.floor(Date.now() / 1000) + 3600,
   })}.test-signature`;
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).endsWith("/token") || String(input).endsWith("/access_token")) {
+      expect(new URLSearchParams(String(init?.body)).get("redirect_uri"))
+        .toBe(`${baseURL}/v1/auth/callback/${provider}`);
+    }
     if (provider === "github") {
       switch (String(input)) {
         case "https://github.com/login/oauth/access_token":
@@ -128,7 +132,7 @@ describe.each(["google", "github"] as const)("optional %s authentication", (prov
     const url = new URL(body.url);
     expect(url.origin).toBe(provider === "google" ? "https://accounts.google.com" : "https://github.com");
     expect(url.searchParams.get("client_id")).toBe("client-id");
-    expect(url.searchParams.get("redirect_uri")).toBe(`${baseURL}/api/auth/callback/${provider}`);
+    expect(url.searchParams.get("redirect_uri")).toBe(`${baseURL}/v1/auth/callback/${provider}`);
     expect(url.searchParams.get("state")).toBeTruthy();
     expect(body.redirect).toBe(false);
     expect(body.url).not.toContain("client-secret");

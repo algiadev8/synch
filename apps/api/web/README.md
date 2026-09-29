@@ -82,13 +82,13 @@ The web build needs no credentials: `/api/auth/providers` reports availability a
 runtime and never returns either credential.
 
 Create a GitHub **OAuth App** with the authorization callback URL
-`<public API origin>/api/auth/callback/github`.
+`<public API origin>/v1/auth/callback/github`.
 
 Create a Google OAuth **Web application** and register the exact redirect URI
-`<public API origin>/api/auth/callback/google`. For Node, use the `PUBLIC_URL`
+`<public API origin>/v1/auth/callback/google`. For Node, use the `PUBLIC_URL`
 origin; for Cloudflare, use the `BETTER_AUTH_URL` origin (set it explicitly for a
 stable public callback). With the Vite development setup above, the URI is
-`http://127.0.0.1:5173/api/auth/callback/google`.
+`http://127.0.0.1:5173/v1/auth/callback/google`.
 
 For Node/Docker, set the credential pair for each provider you want to enable in `apps/api/.env` and restart the server.
 For Cloudflare, configure them as Worker secrets, using the same environment as
@@ -121,3 +121,16 @@ Authentication buttons mark the last successful login method used in this browse
 Better Auth stores this hint in a readable cookie for 30 days, without adding a
 database field. Failed or canceled attempts do not replace the hint, and signing
 out preserves it. Clearing browser cookies removes it.
+
+## Auth route compatibility
+
+Both `/api/auth/*` and `/v1/auth/*` reach the same authentication handler, sessions,
+and policies. The versioned route is an internal alias, not an HTTP redirect:
+request methods, bodies, query parameters, and cookies are preserved. Device
+client and bearer-token normalization apply equally to both routes.
+
+Google and GitHub authorization requests and token exchanges use
+`/v1/auth/callback/google` and `/v1/auth/callback/github`. Register those exact URLs
+with the providers, regardless of which route starts sign-in. When upgrading from
+`/api/auth/callback/...`, update the provider's registered callback URL as well.
+The legacy routes, existing clients, and email verification links remain available.
