@@ -105,7 +105,9 @@ describe("authentication", () => {
     ).toContain("/device?user_code=ABCD");
   });
   it("shows the verification state for signup without a session token", async () => {
-    fetchMock.mockResolvedValue(json({ token: null }));
+    fetchMock.mockImplementation(async (input) =>
+      String(input).endsWith("providers") ? json({ google: false }) : json({ token: null }),
+    );
     render(
       <AuthPage
         mode="signup"

@@ -3,6 +3,13 @@ import { PageHeader, Status, type StatusValue } from "../components/common";
 import { ApiError, getSession, request } from "../lib/api";
 import { authReturnTo, localUrl } from "../lib/navigation";
 import type { PageProps } from "../lib/i18n";
+import { readLastLoginMethod } from "../lib/last-login-method";
+
+const socialProviders = [
+  { id: "google", name: "Google", label: "continueWithGoogle" },
+  { id: "github", name: "GitHub", label: "continueWithGitHub" },
+] as const;
+type SocialProvider = (typeof socialProviders)[number]["id"];
 
 export function AuthPage({
   mode,
@@ -11,14 +18,39 @@ export function AuthPage({
 }: PageProps<"signin" | "signup"> & { mode: "signin" | "signup" }) {
   const signup = mode === "signup";
   const [returnTo] = useState(() => authReturnTo(locale));
+  const [lastLoginMethod] = useState(readLastLoginMethod);
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<StatusValue>({ message: "" });
+  const [enabledProviders, setEnabledProviders] = useState({ google: false, github: false });
+  const [status, setStatus] = useState<StatusValue>(() => ({
+    message: new URLSearchParams(location.search).has("error")
+      ? t("socialFailed")
+      : "",
+    tone: "error",
+  }));
   const [verificationEmail, setVerificationEmail] = useState("");
   const [cooldown, setCooldown] = useState(0);
   const [resending, setResending] = useState(false);
   const [resendStatus, setResendStatus] = useState<StatusValue>({
     message: "",
   });
+  useEffect(() => {
+    const controller = new AbortController();
+    void request<Record<SocialProvider, boolean>>("/api/auth/providers", {
+      fallback: t("requestFailed"),
+      redirectUnauthorized: false,
+      signal: controller.signal,
+    })
+      .then((providers) => {
+        if (!controller.signal.aborted) setEnabledProviders({
+          google: providers?.google === true,
+          github: providers?.github === true,
+        });
+      })
+      .catch(() => {
+        // Email authentication remains available if provider discovery fails.
+      });
+    return () => controller.abort();
+  }, [t]);
   useEffect(() => {
     if (signup) return;
     const controller = new AbortController();
@@ -82,11 +114,38 @@ export function AuthPage({
             message:
               error.code === "SIGN_UP_EMAIL_NOT_ALLOWED"
                 ? t("emailNotAllowed")
-                : error.message,
+                : error.code === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL"
+                  ? t("alreadyRegistered")
+                  : error.message,
             tone: "error",
           });
       } else setStatus({ message: t("apiUnavailableWithHint"), tone: "error" });
     } finally {
+      setBusy(false);
+    }
+  }
+  async function signInWithSocialProvider(provider: SocialProvider, name: string) {
+    if (busy || !enabledProviders[provider]) return;
+    setBusy(true);
+    setStatus({ message: t("socialRedirecting", { provider: name }) });
+    try {
+      const result = await request<{ url: string }>("/api/auth/sign-in/social", {
+        method: "POST",
+        body: {
+          provider,
+          callbackURL: returnTo,
+          errorCallbackURL: localUrl(signup ? "/signup" : "/signin", locale, {
+            return_to: returnTo,
+          }),
+          disableRedirect: true,
+        },
+        redirectUnauthorized: false,
+        fallback: t("socialFailed"),
+      });
+      if (!result?.url) throw new Error("Missing authorization URL");
+      location.assign(result.url);
+    } catch {
+      setStatus({ message: t("socialFailed"), tone: "error" });
       setBusy(false);
     }
   }
@@ -122,6 +181,18 @@ export function AuthPage({
         className="form"
         onSubmit={submit}
       >
+        {socialProviders.filter(({ id }) => enabledProviders[id]).map(({ id, name, label }) => (
+          <button
+            key={id}
+            type="button"
+            className="btn btn--block"
+            disabled={busy}
+            onClick={() => void signInWithSocialProvider(id, name)}
+          >
+            {t(label)}
+            {lastLoginMethod === id && <>{" "}<span className="login-method-badge">{t("lastUsed")}</span></>}
+          </button>
+        ))}
         {signup && (
           <div className="field">
             <label htmlFor="name" className="label">
@@ -181,6 +252,7 @@ export function AuthPage({
                 : "verificationRequiredButton"
               : "submit",
           )}
+          {!signup && lastLoginMethod === "email" && <>{" "}<span className="login-method-badge">{t("lastUsed")}</span></>}
         </button>
         {verificationEmail && (
           <div id="success-container" className="success-panel">

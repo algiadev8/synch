@@ -282,6 +282,17 @@ dialog .label {
 	width: 100%;
 }
 
+.login-method-badge {
+	display: inline-block;
+	margin-inline-start: 0.5rem;
+	padding: 0 0.375rem;
+	border: 1px solid currentColor;
+	border-radius: 0.25rem;
+	font-size: 0.625rem;
+	line-height: 1rem;
+	vertical-align: middle;
+}
+
 .approval-panel .btn {
 	white-space: nowrap;
 }

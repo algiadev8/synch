@@ -1,5 +1,11 @@
 {
   "signin": {
+    "lastUsed": "Last used",
+    "alreadyRegistered": "This email is already registered. Please sign in with your existing login method.",
+    "continueWithGoogle": "Continue with Google",
+    "continueWithGitHub": "Continue with GitHub",
+    "socialRedirecting": "Redirecting to {provider}…",
+    "socialFailed": "Social sign-in failed or was canceled. Please try again.",
     "title": "Welcome back",
     "subtitle": "Sign in to your account to continue",
     "email": "Email",
@@ -23,6 +29,12 @@
     "requestFailed": "Request failed."
   },
   "signup": {
+    "lastUsed": "Last used",
+    "alreadyRegistered": "This email is already registered. Please sign in with your existing login method.",
+    "continueWithGoogle": "Continue with Google",
+    "continueWithGitHub": "Continue with GitHub",
+    "socialRedirecting": "Redirecting to {provider}…",
+    "socialFailed": "Social sign-in failed or was canceled. Please try again.",
     "title": "Create an account",
     "subtitle": "Your vault stays end-to-end encrypted. This account only coordinates sync.",
     "name": "Name",

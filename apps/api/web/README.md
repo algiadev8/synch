@@ -71,3 +71,53 @@ For a Node backend, run it on port 8787 with
 `PUBLIC_URL=http://127.0.0.1:5173` (and the normal Node configuration), then run
 `dev:web`. Run `build:public` after changing shared vault crypto source so the
 vendored module is refreshed before using the Vite dev server.
+
+## Optional Google and GitHub sign-in
+
+Set both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` on the API server to enable
+Google on `/signin` and `/signup`. Set `GITHUB_CLIENT_ID` and
+`GITHUB_CLIENT_SECRET` to enable GitHub independently. Missing, blank, or partial
+configuration keeps that provider and its button disabled; email/password login remains available.
+The web build needs no credentials: `/api/auth/providers` reports availability at
+runtime and never returns either credential.
+
+Create a GitHub **OAuth App** with the authorization callback URL
+`<public API origin>/api/auth/callback/github`.
+
+Create a Google OAuth **Web application** and register the exact redirect URI
+`<public API origin>/api/auth/callback/google`. For Node, use the `PUBLIC_URL`
+origin; for Cloudflare, use the `BETTER_AUTH_URL` origin (set it explicitly for a
+stable public callback). With the Vite development setup above, the URI is
+`http://127.0.0.1:5173/api/auth/callback/google`.
+
+For Node/Docker, set the credential pair for each provider you want to enable in `apps/api/.env` and restart the server.
+For Cloudflare, configure them as Worker secrets, using the same environment as
+your deployment (omit `--env managed` for community):
+
+```sh
+pnpm -C apps/api exec wrangler secret put GOOGLE_CLIENT_ID --env managed
+pnpm -C apps/api exec wrangler secret put GOOGLE_CLIENT_SECRET --env managed
+pnpm -C apps/api exec wrangler secret put GITHUB_CLIENT_ID --env managed
+pnpm -C apps/api exec wrangler secret put GITHUB_CLIENT_SECRET --env managed
+```
+
+Social sign-up uses the existing account creation hooks, including the self-hosted
+email allowlist and personal organization setup. Better Auth handles OAuth state,
+provider verification, and account linking. A verified
+provider email is required for every social login, including returning users;
+unverified provider emails are rejected before creating accounts or sessions.
+On self-hosted servers, a verified
+provider email can link to an existing email/password account with the same
+address without local email verification. Managed deployments still require the
+existing account's email to be verified. The
+post-login destination is preserved, including device approval for Obsidian and
+CLI clients. Vault passwords and encryption keys remain separate from social login.
+
+Email/password sign-up rejects an already registered email, including accounts
+created through Google or GitHub. It does not add a password to a social account
+or show a verification-email success message for duplicate registrations.
+
+Authentication buttons mark the last successful login method used in this browser.
+Better Auth stores this hint in a readable cookie for 30 days, without adding a
+database field. Failed or canceled attempts do not replace the hint, and signing
+out preserves it. Clearing browser cookies removes it.
