@@ -1,13 +1,14 @@
 import { useEffect, useState, type SubmitEvent } from "react";
 import { PageHeader, Status, type StatusValue } from "../components/common";
+import { ProviderIcon } from "../components/provider-icon";
 import { ApiError, getSession, request } from "../lib/api";
 import { authReturnTo, localUrl } from "../lib/navigation";
 import type { PageProps } from "../lib/i18n";
 import { readLastLoginMethod } from "../lib/last-login-method";
 
 const socialProviders = [
-  { id: "google", name: "Google", label: "continueWithGoogle" },
-  { id: "github", name: "GitHub", label: "continueWithGitHub" },
+  { id: "google", label: "continueWithGoogle" },
+  { id: "github", label: "continueWithGitHub" },
 ] as const;
 type SocialProvider = (typeof socialProviders)[number]["id"];
 
@@ -124,10 +125,10 @@ export function AuthPage({
       setBusy(false);
     }
   }
-  async function signInWithSocialProvider(provider: SocialProvider, name: string) {
+  async function signInWithSocialProvider(provider: SocialProvider) {
     if (busy || !enabledProviders[provider]) return;
     setBusy(true);
-    setStatus({ message: t("socialRedirecting", { provider: name }) });
+    setStatus({ message: "" });
     try {
       const result = await request<{ url: string }>("/api/auth/sign-in/social", {
         method: "POST",
@@ -181,16 +182,19 @@ export function AuthPage({
         className="form"
         onSubmit={submit}
       >
-        {socialProviders.filter(({ id }) => enabledProviders[id]).map(({ id, name, label }) => (
+        {socialProviders.filter(({ id }) => enabledProviders[id]).map(({ id, label }) => (
           <button
             key={id}
             type="button"
-            className="btn btn--block"
+            className="btn btn--secondary btn--social btn--block"
             disabled={busy}
-            onClick={() => void signInWithSocialProvider(id, name)}
+            onClick={() => void signInWithSocialProvider(id)}
           >
-            {t(label)}
-            {lastLoginMethod === id && <>{" "}<span className="login-method-badge">{t("lastUsed")}</span></>}
+            <ProviderIcon provider={id} />
+            <span>
+              {t(label)}
+              {lastLoginMethod === id && <>{" "}<span className="login-method-badge">{t("lastUsed")}</span></>}
+            </span>
           </button>
         ))}
         {signup && (

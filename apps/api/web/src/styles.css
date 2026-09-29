@@ -390,6 +390,29 @@ dialog .label {
 
 /* Sign-in / sign-up pages */
 
+.btn--social {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.625rem;
+	min-height: 2.75rem;
+	background-color: var(--zinc-900);
+	color: var(--zinc-200);
+}
+
+.form > .btn--social {
+	margin-top: 0;
+}
+
+.btn--social:focus-visible {
+	outline: 2px solid var(--zinc-400);
+	outline-offset: 3px;
+}
+
+.provider-icon {
+	flex-shrink: 0;
+}
+
 .success-panel {
 	display: flex;
 	flex-direction: column;
