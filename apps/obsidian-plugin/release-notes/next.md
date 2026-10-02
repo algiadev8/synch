@@ -10,3 +10,4 @@
 
 - Show loading spinners on vault sharing and connection buttons while requests are processing.
 - Confirm successful vault access approvals with a notification naming the recipient and vault.
+- Prevent outdated subscription status from reappearing after signing out or resetting the status.
