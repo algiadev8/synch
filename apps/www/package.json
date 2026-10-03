@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "test:redirects": "node --test test/canonical-url.test.mjs test/worker-redirect.test.mjs",
     "test:billing": "node --test test/billing-settings.test.mjs test/billing-success.test.mjs test/pricing-checkout.test.mjs",
     "preview": "astro preview",
     "preview:cloudflare": "pnpm build && wrangler dev",
