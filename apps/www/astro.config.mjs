@@ -5,11 +5,18 @@ import mdx from '@astrojs/mdx';
 import sitemap from '@astrojs/sitemap';
 
 import tailwindcss from '@tailwindcss/vite';
+import { defaultLocale, locales, localizedPath } from './src/i18n';
 
 // https://astro.build/config
 export default defineConfig({
   site: "https://synch.run",
   trailingSlash: "always",
+  // Legal documents are shared in English; keep locale-prefixed links working.
+  redirects: Object.fromEntries(
+    locales.filter((locale) => locale !== defaultLocale).flatMap((locale) =>
+      ["/terms/", "/privacy/"].map((path) => [localizedPath(locale, path), path]),
+    ),
+  ),
   adapter: cloudflare({
     imageService: "passthrough",
   }),
