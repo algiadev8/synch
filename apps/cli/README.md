@@ -79,9 +79,12 @@ Before the first release:
 
 For each release, update the version in `apps/cli/package.json` in a reviewed PR.
 The CLI version is derived from that manifest during bundling. After merging,
-run **Release CLI** (`release-cli.yml`) on `main` in the upstream repository.
-The workflow runs tests, verifies an offline installation, uploads the tarball,
-and publishes it. Forks cannot run the publish job. Existing versions cannot be
+run **Release CLI** (`release-cli.yml`) on `main` in the upstream repository with
+`publish` enabled. The default is a dry run. The workflow runs tests, verifies an
+offline installation of the exact release tarball, uploads it, and publishes that
+artifact in a separate job. CLI CI also runs the release preparation workflow on
+forks without npm credentials, including artifact download and a publish dry run;
+forks cannot run the publish job. Existing versions cannot be
 republished: use a new version for each release. Prerelease publishing and dist-tag
 selection are not provided by this workflow.
 
@@ -97,3 +100,5 @@ pnpm -C apps/cli pack --pack-destination /tmp/synch-cli-release
 `prepack` builds from source, so packing never relies on a previously built
 bundle. Package verification checks the file allowlist, absence of runtime
 dependencies, and the installed `synch --version` and `synch --help` commands.
+It also runs `synch status` with isolated credentials to exercise application
+initialization without contacting an API or reading a real vault.

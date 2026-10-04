@@ -2,19 +2,23 @@ name: Release CLI
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish to npm after verification (upstream main only)"
+        type: boolean
+        default: false
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-cli
+  group: release-cli-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  release:
-    if: github.repository == 'hjinco/synch' && github.ref == 'refs/heads/main'
+  prepare:
     runs-on: ubuntu-latest
-    environment: npm-cli
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v6
@@ -36,16 +40,55 @@ jobs:
             }
           '
       - run: pnpm -C apps/cli test --run
-      - run: pnpm -C apps/cli test:package
       - name: Pack release
         run: pnpm -C apps/cli pack --pack-destination release
+      - name: Verify release archive
+        working-directory: apps/cli
+        run: pnpm test:package release/*.tgz
       - uses: actions/upload-artifact@v4
         with:
           name: synch-cli-package
           path: apps/cli/release/*.tgz
           if-no-files-found: error
+
+  verify-publish:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+          standalone: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: synch-cli-package
+          path: release
+      - name: Dry-run publish of downloaded artifact
+        run: pnpm publish release/*.tgz --access public --no-git-checks --dry-run
+
+  publish:
+    needs: verify-publish
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.repository == 'hjinco/synch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: npm-cli
+    steps:
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+          standalone: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: synch-cli-package
+          path: release
       - name: Publish verified package
-        working-directory: apps/cli
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
