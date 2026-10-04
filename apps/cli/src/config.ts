@@ -1,4 +1,6 @@
-export const CLI_VERSION = "0.1.0";
+import { version } from "../package.json";
+
+export const CLI_VERSION = version;
 export const CLI_CLIENT_ID = "synch-cli";
 export const DEFAULT_CONFIG_DIR_NAME = ".obsidian";
 

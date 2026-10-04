@@ -137,17 +137,16 @@ importers:
         version: 4.114.0(@cloudflare/workers-types@5.20260727.1)
 
   apps/cli:
-    dependencies:
+    devDependencies:
       '@synch/sync-client':
         specifier: workspace:*
         version: link:../../packages/sync-client
-      chokidar:
-        specifier: ^5.0.0
-        version: 5.0.0
-    devDependencies:
       '@types/node':
         specifier: ^24.0.0
         version: 24.12.2
+      chokidar:
+        specifier: ^5.0.0
+        version: 5.0.0
       esbuild:
         specifier: ^0.25.0
         version: 0.25.12
