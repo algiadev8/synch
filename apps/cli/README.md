@@ -102,3 +102,11 @@ bundle. Package verification checks the file allowlist, absence of runtime
 dependencies, and the installed `synch --version` and `synch --help` commands.
 It also runs `synch status` with isolated credentials to exercise application
 initialization without contacting an API or reading a real vault.
+
+CI runs unit tests on Linux (Node.js 22.13 and 24), and package installation
+checks on Linux, macOS, and Windows. Package checks verify installation and
+startup; they do not establish full sync support on every OS. Running the full
+unit suite on macOS exposed a missed watcher event in the reserved-file test;
+Windows exposed a POSIX-only file mode assertion in the credentials test.
+Those host behavior checks require separate follow-up before claiming full
+cross-platform sync validation.
